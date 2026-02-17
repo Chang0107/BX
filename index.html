@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧商店管理系統 - 首頁</title>
+    <style>
+        body {
+            font-family: "Microsoft JhengHei", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f6;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            width: 100%;
+            padding: 40px 0;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+
+        p.subtitle {
+            margin-top: 10px;
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 90%;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            padding-bottom: 40px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            text-decoration: none;
+            color: #333;
+            transition: transform 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            position: relative;
+            overflow: hidden;
+            border-top: 5px solid transparent;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
+        }
+
+        .icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .card h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.5em;
+            color: #2c3e50;
+        }
+
+        .card p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+
+        /* Card-specific colors */
+        .card-pos { border-top-color: #e74c3c; }
+        .card-receiver { border-top-color: #2ecc71; }
+        .card-sender { border-top-color: #3498db; }
+        .card-sim { border-top-color: #9b59b6; }
+
+        .card-pos .icon { color: #e74c3c; }
+        .card-receiver .icon { color: #2ecc71; }
+        .card-sender .icon { color: #3498db; }
+        .card-sim .icon { color: #9b59b6; }
+
+        .tag {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background-color: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            color: #666;
+            font-weight: bold;
+        }
+        
+        footer {
+            margin-top: auto;
+            padding: 20px;
+            color: #95a5a6;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>智慧商店管理系統</h1>
+        <p class="subtitle">Smart Store Management System</p>
+    </header>
+
+    <div class="container">
+        <!-- POS 系統 -->
+        <a href="/pos/index.html" class="card card-pos">
+            <span class="tag">客戶端</span>
+            <div class="icon">🛒</div>
+            <h2>POS 收銀系統</h2>
+            <p>結帳、掃碼、商品銷售介面</p>
+        </a>
+
+        <!-- 庫存管理 -->
+        <a href="/receiver.html" class="card card-receiver">
+            <span class="tag">管理端</span>
+            <div class="icon">📊</div>
+            <h2>即時庫存監控</h2>
+            <p>即時查看庫存狀態與警告 (Receiver)</p>
+        </a>
+
+        <!-- 鏡頭模擬器 -->
+        <a href="/PC_simulator.html" class="card card-sim">
+            <span class="tag">測試工具</span>
+            <div class="icon">📹</div>
+            <h2>鏡頭模擬器</h2>
+            <p>取代 PC.py，模擬商品偵測畫面</p>
+        </a>
+
+        <!-- 物品偵測 (Sender) -->
+        <a href="/sender.html" class="card card-sender">
+            <span class="tag">測試工具</span>
+            <div class="icon">📡</div>
+            <h2>訊號發送測試</h2>
+            <p>手動發送偵測訊號 (Sender)</p>
+        </a>
+    </div>
+
+    <footer>
+        &copy; 2026 智慧商店系統 | Powered by Node.js & Socket.IO
+    </footer>
+
+</body>
+</html>

@@ -1,0 +1,434 @@
+[
+  {
+    "id": 1769746252993,
+    "time": "2026-01-30T04:10:52.993Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1769746251371,
+    "time": "2026-01-30T04:10:51.371Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1769746250892,
+    "time": "2026-01-30T04:10:50.892Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1769746242211,
+    "time": "2026-01-30T04:10:42.211Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769746231907,
+    "time": "2026-01-30T04:10:31.907Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769746228969,
+    "time": "2026-01-30T04:10:28.969Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1769746219315,
+    "time": "2026-01-30T04:10:19.315Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769745663156,
+    "time": "2026-01-30T04:01:03.156Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769745660521,
+    "time": "2026-01-30T04:01:00.521Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769745498137,
+    "time": "2026-01-30T03:58:18.137Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769745494894,
+    "time": "2026-01-30T03:58:14.894Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769745128549,
+    "time": "2026-01-30T03:52:08.549Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769744824658,
+    "time": "2026-01-30T03:47:04.658Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769744785215,
+    "time": "2026-01-30T03:46:25.215Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769744729878,
+    "time": "2026-01-30T03:45:29.878Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769702296521,
+    "time": "2026-01-29T15:58:16.521Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1769701703815,
+    "time": "2026-01-29T15:48:23.815Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769701645684,
+    "time": "2026-01-29T15:47:25.684Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1769701640245,
+    "time": "2026-01-29T15:47:20.245Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1769701595235,
+    "time": "2026-01-29T15:46:35.235Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769701580576,
+    "time": "2026-01-29T15:46:20.576Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769701577777,
+    "time": "2026-01-29T15:46:17.777Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1769701113773,
+    "time": "2026-01-29T15:38:33.773Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769701106666,
+    "time": "2026-01-29T15:38:26.666Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1769700872505,
+    "time": "2026-01-29T15:34:32.505Z",
+    "action": "DETECT",
+    "item": "人",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1769700801987,
+    "time": "2026-01-29T15:33:21.987Z",
+    "action": "DETECT",
+    "item": "人",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769700801980,
+    "time": "2026-01-29T15:33:21.980Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769700796841,
+    "time": "2026-01-29T15:33:16.841Z",
+    "action": "DETECT",
+    "item": "人",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769700779717,
+    "time": "2026-01-29T15:32:59.717Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769700778444,
+    "time": "2026-01-29T15:32:58.444Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769700778441,
+    "time": "2026-01-29T15:32:58.441Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769700410715,
+    "time": "2026-01-29T15:26:50.715Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769700409449,
+    "time": "2026-01-29T15:26:49.449Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769700122645,
+    "time": "2026-01-29T15:22:02.645Z",
+    "action": "DETECT",
+    "item": "人",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769700106345,
+    "time": "2026-01-29T15:21:46.345Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769700105843,
+    "time": "2026-01-29T15:21:45.843Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769700050646,
+    "time": "2026-01-29T15:20:50.646Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769687915553,
+    "time": "2026-01-29T11:58:35.553Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1769687903222,
+    "time": "2026-01-29T11:58:23.222Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1769687869409,
+    "time": "2026-01-29T11:57:49.409Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1769687865665,
+    "time": "2026-01-29T11:57:45.665Z",
+    "action": "DETECT",
+    "item": "water",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687864307,
+    "time": "2026-01-29T11:57:44.307Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687862764,
+    "time": "2026-01-29T11:57:42.764Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687858445,
+    "time": "2026-01-29T11:57:38.445Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769687853489,
+    "time": "2026-01-29T11:57:33.489Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1769687844436,
+    "time": "2026-01-29T11:57:24.436Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1769687833579,
+    "time": "2026-01-29T11:57:13.579Z",
+    "action": "DETECT",
+    "item": "water",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687833576,
+    "time": "2026-01-29T11:57:13.576Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687833434,
+    "time": "2026-01-29T11:57:13.434Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687832917,
+    "time": "2026-01-29T11:57:12.917Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1769687815585,
+    "time": "2026-01-29T11:56:55.585Z",
+    "action": "DETECT",
+    "item": "water",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687815584,
+    "time": "2026-01-29T11:56:55.584Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687815578,
+    "time": "2026-01-29T11:56:55.578Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1769687814804,
+    "time": "2026-01-29T11:56:54.804Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  }
+]

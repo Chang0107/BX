@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智慧冰箱管家</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧊</text></svg>">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 側邊導航欄 -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <div class="logo-icon">🧊</div>
+                <h1>智慧冰箱</h1>
+            </div>
+            
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="inventory">
+                    <span class="icon">📦</span> 庫存管理
+                </button>
+                <button class="nav-item" data-tab="history">
+                    <span class="icon">📜</span> 活動紀錄
+                </button>
+                <button class="nav-item" data-tab="settings">
+                    <span class="icon">⚙️</span> 系統設定
+                </button>
+            </nav>
+
+            <div class="status-card">
+                <h3>系統狀態</h3>
+                <div class="status-item">
+                    <span class="status-label">伺服器</span>
+                    <span id="serverStatus" class="status-dot offline"></span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">AI 鏡頭</span>
+                    <span id="cameraStatus" class="status-dot offline"></span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主內容區 -->
+        <main class="main-content">
+            <!-- 庫存頁面 -->
+            <div id="tab-inventory" class="tab-content active">
+                <header class="page-header sticky-header">
+                    <h2>目前庫存</h2>
+                    <div class="header-actions">
+                        <div class="search-bar">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="searchInput" placeholder="搜尋物品...">
+                        </div>
+                        <button id="smartResetBtn" class="btn btn-primary">
+                            智慧重置
+                        </button>
+                        <button id="cleanZeroBtn" class="btn btn-secondary">
+                            清除空項
+                        </button>
+                    </div>
+                </header>
+
+                <!-- 新增掃描控制列 -->
+                <div class="scanner-area sticky-scanner">
+                    <div class="scanner-toggle">
+                        <button id="scanInBtn" class="toggle-btn active in">➕ 進貨 (新增)</button>
+                        <button id="scanOutBtn" class="toggle-btn">➖ 出貨 (移除)</button>
+                    </div>
+                    <div class="scanner-input-wrapper">
+                        <span class="scanner-icon">🔫</span>
+                        <input type="text" id="globalScanner" class="scanner-input" placeholder="掃描條碼以新增/移除物品..." autofocus>
+                    </div>
+                </div>
+
+                <div class="inventory-stats">
+                    <div class="stat-card">
+                        <span class="stat-title">總品項</span>
+                        <span class="stat-value" id="totalItems">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-title">總數量</span>
+                        <span class="stat-value" id="totalQuantity">0</span>
+                    </div>
+                    <div class="stat-card warning">
+                        <span class="stat-title">即將過期</span>
+                        <span class="stat-value" id="expiringItems">0</span>
+                    </div>
+                </div>
+
+                <div class="inventory-grid" id="itemList">
+                    <!-- 物品卡片將由 JS 生成 -->
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>冰箱目前空空如也</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 歷史紀錄頁面 -->
+            <div id="tab-history" class="tab-content">
+                <header class="page-header">
+                    <h2>活動紀錄</h2>
+                    <button class="btn btn-text" onclick="app.clearHistory()">清空紀錄</button>
+                </header>
+                <div class="history-list" id="historyList">
+                    <!-- 歷史紀錄列表 -->
+                </div>
+            </div>
+
+            <!-- 設定頁面 -->
+            <div id="tab-settings" class="tab-content">
+                <header class="page-header">
+                    <h2>系統設定</h2>
+                </header>
+                <div class="settings-container">
+                    <div class="setting-card">
+                        <h3>資料庫模式</h3>
+                        <select id="databaseMode" class="form-select">
+                            <option value="local">本地模式 (最快)</option>
+                            <option value="hybrid">混合模式 (Google Sheets 同步)</option>
+                        </select>
+                    </div>
+                    
+                    <div id="sheetsConfigGroup" style="display:none;">
+                        <div class="setting-card">
+                            <h3>Google Sheets 設定</h3>
+                            <div class="form-group">
+                                <label>Spreadsheet ID</label>
+                                <input type="text" id="configSpreadsheetId" class="form-input">
+                            </div>
+                            <button id="saveConfigBtn" class="btn btn-primary">儲存設定</button>
+                        </div>
+                    </div>
+
+                    <div class="setting-card">
+                        <h3>手動操作</h3>
+                        <div class="manual-add-form">
+                            <input type="text" id="manualName" placeholder="物品名稱" class="form-input">
+                            <input type="number" id="manualQty" placeholder="數量" class="form-input" value="1" min="1">
+                            <button id="manualAddBtn" class="btn btn-success">新增物品</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <!-- 物品詳細資訊 Modal -->
+    <div id="itemModal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3 class="modal-title" id="modalTitle">物品詳情</h3>
+                <button class="modal-close" onclick="app.closeModal()">×</button>
+            </header>
+            <div class="modal-body">
+                <div class="detail-group">
+                    <label class="detail-label">物品名稱</label>
+                    <div id="modalItemName" class="detail-value-large" style="font-size: 1.5rem; font-weight: bold; color: var(--primary-color);"></div>
+                </div>
+                
+                <div class="detail-group">
+                    <label class="detail-label">當前數量</label>
+                    <div class="item-controls" style="justify-content: center; gap: 20px;">
+                        <button class="qty-btn" id="modalDecreaseBtn">-</button>
+                        <span id="modalQtyDisplay" class="qty-display" style="font-size: 2rem;">0</span>
+                        <button class="qty-btn" id="modalIncreaseBtn">+</button>
+                    </div>
+                </div>
+
+                <div class="detail-group">
+                    <label class="detail-label">有效期限</label>
+                    <input type="date" id="modalExpDate" class="form-input">
+                </div>
+
+                <div class="barcode-link-box">
+                    <label class="detail-label">綁定條碼 / 補充資訊</label>
+                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">
+                        在此掃描條碼，即可將條碼與此物品綁定。
+                    </p>
+                    <input type="text" id="modalBarcodeScanner" class="barcode-link-input" placeholder="請掃描條碼...">
+                    <div id="linkedBarcodes" style="margin-top: 10px; font-size: 0.85rem; color: var(--primary-color);"></div>
+                </div>
+
+                <div class="modal-status-bar">
+                    <span class="status-pulse"></span>
+                    <span>掃描器待命：可直接掃描下一件或累積數量</span>
+                </div>
+                
+                <input type="text" id="modalScanProxy" style="opacity: 0; position: absolute; pointer-events: none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- 腳本引入 -->
+    <script src="config.js"></script>
+    <script src="google-sheets-direct.js"></script>
+    <script src="google-sheets-api.js"></script>
+    <script src="local-database.js"></script>
+    <script src="hybrid-database.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        if (typeof io === 'undefined') {
+            document.write('<script src="/socket.io/socket.io.js"><\/script>');
+        }
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>鏡頭模擬器 (取代 PC.py)</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { 
+            font-family: "Microsoft JhengHei", sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            margin: 0; 
+            padding: 20px; 
+            box-sizing: border-box; 
+            background-color: #fcfcfc;
+        }
+        
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 20px; 
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        h1 { margin: 0; font-size: 24px; color: #2c3e50; }
+        .subtitle { font-size: 14px; color: #7f8c8d; margin-top: 5px; }
+
+        .status { 
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold; 
+            font-size: 14px;
+            background-color: #f8d7da; 
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status.connected { 
+            background-color: #d4edda; 
+            color: #155724; 
+            border-color: #c3e6cb;
+        }
+        
+        .main-container { 
+            display: flex; 
+            flex: 1; 
+            gap: 20px;
+        }
+        
+        /* 左側模擬鏡頭區 */
+        .camera-zone-container {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .camera-zone {
+            flex: 1;
+            border: 4px dashed #bdc3c7;
+            border-radius: 20px;
+            position: relative;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            padding: 30px;
+            transition: all 0.3s;
+        }
+
+        .camera-zone.drag-over {
+            background-color: #e8f6f3;
+            border-color: #2ecc71;
+            transform: scale(1.01);
+        }
+
+        .camera-zone-placeholder {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #bdc3c7;
+            font-size: 1.5em;
+            pointer-events: none;
+            z-index: 0;
+            font-weight: bold;
+            text-align: center;
+        }
+        
+        /* 右側物品欄 */
+        .items-sidebar {
+            flex: 1;
+            min-width: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            align-items: center;
+        }
+
+        .sidebar-title {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            width: 100%;
+            text-align: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .item {
+            width: 100px;
+            height: 100px;
+            background-color: white;
+            border: 2px solid #eee;
+            border-radius: 15px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+            user-select: none;
+            position: relative;
+            z-index: 1;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-color: #3498db;
+        }
+
+        .item:active {
+            cursor: grabbing;
+        }
+        
+        .item-icon {
+            font-size: 40px;
+            margin-bottom: 5px;
+        }
+
+        .item-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: #555;
+            background: rgba(255,255,255,0.9);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        /* 鏡頭內的物品樣式 */
+        .camera-zone .item {
+            margin: 10px;
+            cursor: pointer;
+            width: 90px;
+            height: 90px;
+            animation: popIn 0.3s ease-out;
+            border-color: #2ecc71;
+        }
+        
+        .camera-zone .item:hover {
+            border-color: #e74c3c;
+            background-color: #fff5f5;
+        }
+
+        /* 刪除按鈕 (Hover時顯示) */
+        .camera-zone .item:hover::after {
+            content: "移除";
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #e74c3c;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .instructions {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #7f8c8d;
+            text-align: center;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        /* 物品顏色識別 */
+        .item[data-name="tea"] .item-icon { color: #e74c3c; }
+        .item[data-name="banana"] .item-icon { color: #f1c40f; }
+        .item[data-name="water"] .item-icon { color: #3498db; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div>
+            <h1>鏡頭模擬器</h1>
+            <div class="subtitle">此網頁可完全取代 PC.py，用於測試庫存系統</div>
+        </div>
+        <div class="status" id="connectionStatus">🔴 未連線</div>
+    </div>
+
+    <div class="main-container">
+        <div class="camera-zone-container">
+            <div class="camera-zone" id="cameraZone" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <div class="camera-zone-placeholder">
+                    請將右側物品拖曳至此<br>
+                    <span style="font-size: 0.6em; font-weight: normal;">(模擬物品進入鏡頭視野)</span>
+                </div>
+            </div>
+            <div class="instructions">💡 提示：點擊框內的物品即可將其「移出鏡頭」（模擬刪除）</div>
+        </div>
+
+        <div class="items-sidebar">
+            <div class="sidebar-title">物品清單</div>
+            
+            <div class="item" draggable="true" ondragstart="drag(event)" data-name="tea">
+                <div class="item-icon">🧃</div>
+                <span class="item-name">麥香紅茶</span>
+            </div>
+            
+            <div class="item" draggable="true" ondragstart="drag(event)" data-name="banana">
+                <div class="item-icon">🍌</div>
+                <span class="item-name">香蕉</span>
+            </div>
+            
+            <div class="item" draggable="true" ondragstart="drag(event)" data-name="water">
+                <div class="item-icon">💧</div>
+                <span class="item-name">水</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 自動連線到伺服器 (預設連線到載入此頁面的來源，即 localhost:3000)
+        const socket = io();
+        
+        const statusDiv = document.getElementById('connectionStatus');
+        const cameraZone = document.getElementById('cameraZone');
+        const placeholder = document.querySelector('.camera-zone-placeholder');
+
+        // --- Socket.IO 事件處理 ---
+
+        socket.on('connect', () => {
+            statusDiv.innerHTML = "🟢 已連線 (模擬 PC.py)";
+            statusDiv.classList.add('connected');
+            
+            // 重要：告訴 Server 我們是偵測端 (模擬 PC.py 的行為)
+            socket.emit('register_detector');
+        });
+
+        socket.on('disconnect', () => {
+            statusDiv.innerHTML = "🔴 與伺服器斷線";
+            statusDiv.classList.remove('connected');
+        });
+
+        // 伺服器要求重新同步 (Smart Reset 時觸發)
+        socket.on('request_resync', () => {
+            console.log("收到重置請求，正在重新發送目前畫面上的物品...");
+            resyncAllItems();
+        });
+
+        // --- 拖曳與互動邏輯 ---
+
+        function allowDrop(ev) { ev.preventDefault(); }
+
+        function dragEnter(ev) {
+            ev.preventDefault();
+            cameraZone.classList.add('drag-over');
+        }
+
+        function dragLeave(ev) {
+            if (ev.target === cameraZone) {
+                cameraZone.classList.remove('drag-over');
+            }
+        }
+
+        function drag(ev) {
+            ev.dataTransfer.setData("text", ev.target.dataset.name);
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+            cameraZone.classList.remove('drag-over');
+            
+            const name = ev.dataTransfer.getData("text");
+            if (name) {
+                addItemToCamera(name);
+            }
+        }
+
+        function addItemToCamera(name) {
+            // 隱藏提示文字
+            placeholder.style.display = 'none';
+
+            const newItem = document.createElement('div');
+            newItem.className = 'item';
+            newItem.dataset.name = name;
+            
+            let label = "";
+            let icon = "";
+            
+            if(name === 'tea') { label = "麥香紅茶"; icon = "🧃"; }
+            if(name === 'banana') { label = "香蕉"; icon = "🍌"; }
+            if(name === 'water') { label = "水"; icon = "💧"; }
+            
+            newItem.innerHTML = `<div class="item-icon">${icon}</div><span class="item-name">${label}</span>`;
+            
+            // 點擊移除 (模擬移出鏡頭)
+            newItem.onclick = function() {
+                this.remove();
+                
+                // 如果空了，顯示提示
+                if (cameraZone.querySelectorAll('.item').length === 0) {
+                    placeholder.style.display = 'block';
+                }
+
+                // 發送移除訊號給 Server
+                sendDetection(name, 'REMOVE');
+            };
+
+            cameraZone.appendChild(newItem);
+            
+            // 發送新增訊號給 Server
+            sendDetection(name, 'ADD');
+        }
+
+        // --- 發送資料給 Server (模擬 PC.py 的格式) ---
+
+        function sendDetection(name, action) {
+            // 資料格式需對應 server.js 的 detect_item 事件
+            // const { name, quantity, isAutoMode, action } = data;
+            
+            const payload = {
+                name: name,
+                quantity: 1,
+                isAutoMode: true, // 模擬自動模式，讓 Server 更新 isDetecting 狀態
+                action: action // 'ADD' 或 'REMOVE' (Server 用這個判斷增減)
+            };
+
+            socket.emit('detect_item', payload);
+            console.log(`已發送: ${action} ${name}`, payload);
+        }
+
+        function resyncAllItems() {
+            const items = cameraZone.getElementsByClassName('item');
+            if (items.length === 0) return;
+
+            // 稍微延遲一下讓 Server 清空完成
+            setTimeout(() => {
+                for(let el of items) {
+                    const name = el.dataset.name;
+                    sendDetection(name, 'ADD'); // 重新發送 ADD
+                }
+            }, 500);
+        }
+
+    </script>
+</body>
+</html>
