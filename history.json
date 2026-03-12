@@ -1,5 +1,173 @@
 [
   {
+    "id": 1773289944761,
+    "time": "2026-03-12T04:32:24.761Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1771821598243,
+    "time": "2026-02-23T04:39:58.243Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
+    "id": 1771821593581,
+    "time": "2026-02-23T04:39:53.581Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1771820926350,
+    "time": "2026-02-23T04:28:46.350Z",
+    "action": "DETECT",
+    "item": "water",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1771820922456,
+    "time": "2026-02-23T04:28:42.456Z",
+    "action": "DETECT",
+    "item": "water",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1771820908087,
+    "time": "2026-02-23T04:28:28.087Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1771820875177,
+    "time": "2026-02-23T04:27:55.177Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1771820804590,
+    "time": "2026-02-23T04:26:44.590Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1771820726619,
+    "time": "2026-02-23T04:25:26.619Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1771820725798,
+    "time": "2026-02-23T04:25:25.798Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1771820441621,
+    "time": "2026-02-23T04:20:41.621Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1771820440138,
+    "time": "2026-02-23T04:20:40.138Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1771820432056,
+    "time": "2026-02-23T04:20:32.056Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1771820428688,
+    "time": "2026-02-23T04:20:28.688Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1771820415811,
+    "time": "2026-02-23T04:20:15.811Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1771819972804,
+    "time": "2026-02-23T04:12:52.804Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1771819957415,
+    "time": "2026-02-23T04:12:37.415Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1771819931801,
+    "time": "2026-02-23T04:12:11.801Z",
+    "action": "DETECT",
+    "item": "banana",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1771819928339,
+    "time": "2026-02-23T04:12:08.339Z",
+    "action": "DETECT",
+    "item": "tea",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1771819926642,
+    "time": "2026-02-23T04:12:06.642Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
+    "id": 1771819903028,
+    "time": "2026-02-23T04:11:43.028Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動新增物品"
+  },
+  {
     "id": 1769746252993,
     "time": "2026-01-30T04:10:52.993Z",
     "action": "MANUAL",

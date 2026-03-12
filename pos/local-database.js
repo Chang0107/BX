@@ -80,7 +80,7 @@ class LocalDatabase {
             const itemCode = String(item.code || item.條碼 || '').trim();
             return itemCode === normalizedCode;
         });
-
+//fjio
         if (item) {
             // 返回標準格式，確保數量是數字類型（修復進位問題）
             const quantity = item.quantity !== undefined ? item.quantity : (item.數量 !== undefined ? item.數量 : 0);
