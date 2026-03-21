@@ -3,6 +3,7 @@ import threading
 import queue
 import time
 import sys
+import os
 import itertools
 import google.generativeai as genai
 from ultralytics import YOLO
@@ -13,7 +14,16 @@ import socketio
 # ==========================================
 # 設定區
 # ==========================================
-API_KEY = "AIzaSyB-VKaV6mTs6T2gG2V3nMKkNgtDXWgUlMA"
+# Gemini API Key：可填多組，遇 429 / 額度不足時會依序輪替同一模型；全部 Key 都失敗後才切換下一個模型。
+# 亦可改用環境變數（優先於下列列表）：
+#   - GEMINI_API_KEYS=key1,key2,key3
+#   - 或 GEMINI_API_KEY=單一 key
+API_KEYS = [
+    "AIzaSyB-VKaV6mTs6T2gG2V3nMKkNgtDXWgUlMA",  # 第一組 Key（請填入）
+    "AIzaSyDGZDVoppPMBHn3_0kjQDSJwH4Hisw8Frg",  # 第二組（選填）
+    # "",  # 更多組…
+]
+
 YOLO_MODEL_NAME = 'yolo11n.pt' 
 FONT_PATH = "C:/Windows/Fonts/msjh.ttc" 
 FONT_SIZE = 30 
@@ -36,6 +46,24 @@ CANDIDATE_MODELS = [
 ]
 
 # ==========================================
+
+
+def _resolve_gemini_api_keys():
+    """環境變數優先，否則使用上方 API_KEYS 列表（略過空字串）。"""
+    env_multi = os.environ.get("GEMINI_API_KEYS", "").strip()
+    if env_multi:
+        return [k.strip() for k in env_multi.split(",") if k.strip()]
+    env_single = os.environ.get("GEMINI_API_KEY", "").strip()
+    if env_single:
+        return [env_single]
+    return [str(k).strip() for k in API_KEYS if str(k).strip()]
+
+
+RESOLVED_GEMINI_KEYS = _resolve_gemini_api_keys()
+if not RESOLVED_GEMINI_KEYS:
+    print("❌ 錯誤：請在 PC.py 的 API_KEYS 填入至少一組 Key，或設定環境變數 GEMINI_API_KEY / GEMINI_API_KEYS")
+    exit()
+
 
 class Spinner:
     def __init__(self, message="處理中"):
@@ -71,17 +99,6 @@ class Spinner:
 
 # ==========================================
 
-clean_api_key = API_KEY.strip()
-if not clean_api_key:
-    print("❌ 錯誤：API Key 是空的！請在程式碼中填入 API Key。")
-    exit()
-
-try:
-    genai.configure(api_key=clean_api_key)
-except Exception as e:
-    print(f"❌ API Key 設定錯誤: {e}")
-    exit()
-
 class SmartVisionSystem:
     def __init__(self):
         print("=== 系統初始化 ===")
@@ -97,6 +114,17 @@ class SmartVisionSystem:
         self.sio.on('request_resync', self.on_resync_request)
         
         self.connect_to_server()
+
+        # 多組 API Key（額度不足時輪替）
+        self.api_keys = list(RESOLVED_GEMINI_KEYS)
+        self.current_key_index = 0
+        try:
+            genai.configure(api_key=self.api_keys[self.current_key_index])
+            print(f"🔑 已載入 {len(self.api_keys)} 組 Gemini API Key（遇額度問題將依序切換）")
+        except Exception as e:
+            print(f"❌ API Key 設定錯誤: {e}")
+            self.is_running = False
+            return
         
         print("正在過濾無效模型 (去除 404)...")
         self.valid_models = self.filter_valid_models()
@@ -177,6 +205,32 @@ class SmartVisionSystem:
                     valid_list.append(name)
         return valid_list
 
+    @staticmethod
+    def _is_quota_or_rate_limit_error(err_msg: str) -> bool:
+        """判斷是否為額度 / 限速類錯誤（可觸發換 Key 或換模型）。"""
+        u = err_msg.upper()
+        return (
+            "429" in err_msg
+            or "RESOURCE_EXHAUSTED" in u
+            or "QUOTA" in u
+            or "RATE LIMIT" in u
+            or "RATE_LIMIT" in u
+            or "TOO MANY REQUESTS" in u
+        )
+
+    def apply_current_api_key(self):
+        """使用目前索引的 Key 重新 configure，並以目前 model_name 重建 GenerativeModel。"""
+        genai.configure(api_key=self.api_keys[self.current_key_index])
+        self.gemini_model = genai.GenerativeModel(self.model_name)
+
+    def rotate_next_api_key(self):
+        """切換到下一組 API Key 並套用。若只有一組 Key 則不變。"""
+        if len(self.api_keys) <= 1:
+            return
+        self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
+        self.apply_current_api_key()
+        print(f"\n🔑 已切換至第 {self.current_key_index + 1}/{len(self.api_keys)} 組 API Key")
+
     def switch_next_model(self):
         self.current_model_index = (self.current_model_index + 1) % len(self.valid_models)
         self.model_name = self.valid_models[self.current_model_index]
@@ -208,6 +262,8 @@ class SmartVisionSystem:
                 max_retries = len(self.valid_models)
                 attempts = 0
                 product_name = "辨識失敗"
+                # 同一模型下，已因額度問題輪替過幾次 Key（輪完一輪仍失敗才換模型）
+                quota_key_rotations = 0
                 
                 while attempts < max_retries:
                     try:
@@ -223,17 +279,36 @@ class SmartVisionSystem:
                         break
                         
                     except Exception as api_err:
-                        attempts += 1
                         err_msg = str(api_err)
-                        
-                        if "429" in err_msg:
-                            print(f" !! [API 429] 額度已滿，暫停 5 秒後切換模型...")
-                            time.sleep(5) # [新增] 強制冷卻
-                            self.switch_next_model()
-                        else:
-                            print(f" !! [API Error] {err_msg}")
-                            product_name = "API錯誤"
-                            break
+
+                        if self._is_quota_or_rate_limit_error(err_msg):
+                            short = err_msg[:300] + ("..." if len(err_msg) > 300 else "")
+                            print(f" !! [API 額度/限速] {short}")
+                            time.sleep(2)
+
+                            if len(self.api_keys) > 1:
+                                self.rotate_next_api_key()
+                                quota_key_rotations += 1
+                                if quota_key_rotations >= len(self.api_keys):
+                                    # 所有 Key 在此模型上都失敗，改換下一個模型，並從第一組 Key 重試
+                                    quota_key_rotations = 0
+                                    attempts += 1
+                                    print(" !! 所有 API Key 皆額度不足，改切換模型並從第一組 Key 重試...")
+                                    self.current_key_index = 0
+                                    genai.configure(api_key=self.api_keys[0])
+                                    time.sleep(3)
+                                    self.switch_next_model()
+                                continue
+                            else:
+                                attempts += 1
+                                time.sleep(3)
+                                self.switch_next_model()
+                                continue
+
+                        attempts += 1
+                        print(f" !! [API Error] {err_msg}")
+                        product_name = "API錯誤"
+                        break
 
                 with self.lock:
                     if track_id in self.object_database:
