@@ -1,0 +1,22 @@
+{
+  name 智慧冰箱管家,
+  short_name 智慧冰箱,
+  description 管理冰箱庫存與即期食品的智慧助手,
+  start_url index.html,
+  display standalone,
+  background_color #ffffff,
+  theme_color #4A90E2,
+  orientation portrait,
+  icons [
+    {
+      src httpscdn.jsdelivr.netghtwittertwemoji@latestassets72x721f1e6.png,
+      sizes 72x72,
+      type imagepng
+    },
+    {
+      src httpscdn.jsdelivr.netghtwittertwemoji@latestassets512x5122744.png,
+      sizes 512x512,
+      type imagepng
+    }
+  ]
+}

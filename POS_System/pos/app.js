@@ -34,6 +34,19 @@ class SmartFridgeApp {
     initSocket() {
         // 自動判斷 Socket.IO 連線位置
         const SERVER_URL = window.location.origin;
+        
+        // 檢查是否為本地檔案協議 (file://)
+        if (window.location.protocol === 'file:') {
+            console.warn('正在以本地檔案模式運行，Socket.IO 功能將被停用。');
+            this.updateStatus('server', false);
+            return;
+        }
+
+        if (typeof io === 'undefined') {
+            console.warn('找不到 Socket.IO 庫，請確認伺服器已啟動。');
+            return;
+        }
+
         this.socket = io(SERVER_URL);
 
         this.socket.on('connect', () => {
@@ -348,11 +361,19 @@ class SmartFridgeApp {
         return map[action] || action;
     }
 
-    updateQty(name, change) {
+    async updateQty(name, change) {
         const item = this.items.find(i => i.name === name);
         if (item) {
             const newQty = Math.max(0, parseInt(item.quantity) + change);
             item.quantity = newQty;
+            
+            // 同步到數據庫
+            if (this.databaseMode === 'local' && this.localDB) {
+                await this.localDB.updateItem(item.barcode || item.name, item.name, newQty);
+            } else if (this.databaseMode === 'hybrid' && this.hybridDB) {
+                await this.hybridDB.updateItem(item.barcode || item.name, item.name, newQty);
+            }
+
             if (newQty === 0) {
                 this.items = this.items.filter(i => i.name !== name);
             }
@@ -375,12 +396,28 @@ class SmartFridgeApp {
     }
 
     syncUpdate() {
+        // 如果沒有 Socket 連線，僅在本地運作
+        if (!this.socket) {
+            this.saveToLocal();
+            return;
+        }
         // 過濾掉數量為 0 的項目
         const cleanInventory = this.items.filter(i => i.quantity > 0);
         this.socket.emit('manual_update', cleanInventory);
     }
 
-    manualAdd() {
+    // [新增] 當沒有伺服器時，將狀態保存至本地
+    async saveToLocal() {
+        if (this.databaseMode === 'local' && this.localDB) {
+            // 由於 local-database.js 是基於單一項目的更新，這裡需要轉換
+            // 或是直接更新整個緩存
+            for (const item of this.items) {
+                await this.localDB.updateItem(item.barcode || item.name, item.name, item.quantity);
+            }
+        }
+    }
+
+    async manualAdd() {
         const nameInput = document.getElementById('manualName');
         const qtyInput = document.getElementById('manualQty');
         const name = nameInput.value.trim();
@@ -390,18 +427,28 @@ class SmartFridgeApp {
             const existing = this.items.find(i => i.name === name);
             if (existing) {
                 existing.quantity += qty;
+                // 同步更新
+                await this.updateQty(name, 0); 
             } else {
-                this.items.push({
+                const newItem = {
                     name: name,
                     quantity: qty,
                     source: '手動新增',
                     id: Date.now()
-                });
+                };
+                this.items.push(newItem);
+                // 同步到數據庫
+                if (this.databaseMode === 'local' && this.localDB) {
+                    await this.localDB.updateItem(name, name, qty);
+                } else if (this.databaseMode === 'hybrid' && this.hybridDB) {
+                    await this.hybridDB.updateItem(name, name, qty);
+                }
             }
             this.syncUpdate();
             nameInput.value = '';
             qtyInput.value = 1;
             this.showNotification(`已新增 ${name}`);
+            this.renderInventory();
         }
     }
 

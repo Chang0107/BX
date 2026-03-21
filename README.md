@@ -41,14 +41,16 @@ graph TD
 ## 🚀 快速開始
 
 ### 1. 安裝依賴
-請進入 `final_project` 資料夾：
+請進入 `POS_System` 資料夾：
 ```bash
+cd POS_System
 npm install
 pip install ultralytics google-generativeai python-socketio websocket-client opencv-python pillow numpy
 ```
 
 ### 2. 啟動伺服器
 ```bash
+cd POS_System
 node server.js
 ```
 伺服器啟動後，會顯示您的 IP 位址。
@@ -59,7 +61,8 @@ python PC.py
 ```
 
 ### 4. 開啟操作介面
-*   **POS 系統 (推薦)**：瀏覽器開啟 `http://localhost:3000/pos/index.html`
+*   **POS 管理後台**：瀏覽器開啟 `http://localhost:3000/` (即 `index.html`)
+*   **POS 收銀系統**：瀏覽器開啟 `http://localhost:3000/pos/index.html`
 *   **簡易監控**：瀏覽器開啟 `http://localhost:3000/receiver.html`
 
 ---

@@ -24,7 +24,7 @@
 
 | 項目 | 說明 |
 |------|------|
-| 主要檔案 | `pos/index.html`、`pos/app.js`、`receiver.html`（可視需求加入其他頁面） |
+| 主要檔案 | `POS_System/pos/index.html`、`POS_System/pos/app.js`、`POS_System/receiver.html`（可視需求加入其他頁面） |
 | 負責範圍 | 版面、流程、視覺、互動、響應式、無障礙；「即時數量」與「掃碼校正」的介面設計 |
 | 升級方向 | 冰箱情境的 UI、校正步驟引導、狀態提示（如：鏡頭失準請掃碼校正）、Google Sheets 設定體驗 |
 
@@ -38,7 +38,7 @@
 
 | 項目 | 說明 |
 |------|------|
-| 主要檔案 | `server.js`、`inventory.json`、`history.json`（結構與讀寫邏輯） |
+| 主要檔案 | `POS_System/server.js`、`POS_System/inventory.json`、`POS_System/history.json`（結構與讀寫邏輯） |
 | 負責範圍 | Express 路由、Socket.IO 事件、庫存 CRUD、即時推播給各端、API 設計 |
 | 升級方向 | 事件命名與 payload 規範、錯誤處理、簡單權限或連線管理、效能與擴充性 |
 
@@ -64,7 +64,7 @@
 
 可將 **角色三（後端與即時同步）** 與 **角色四（資料與整合）** 合併為一人，負責：
 
-- `server.js`、庫存/歷史、Socket.IO、API  
+- `POS_System/server.js`、庫存/歷史、Socket.IO、API  
 - 掃碼校正邏輯、Google Sheets、資料結構與欄位  
 
 介面與影像辨識仍各一人，共 3 人。

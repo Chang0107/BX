@@ -6,6 +6,11 @@
     <title>智慧冰箱管家</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧊</text></svg>">
+    <link rel="manifest" href="manifest.json">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
     <div class="app-container">
@@ -200,8 +205,9 @@
     <script src="google-sheets-api.js"></script>
     <script src="local-database.js"></script>
     <script src="hybrid-database.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
+        // 優先嘗試從 CDN 載入 Socket.IO，若失敗則回退到本地路徑
         if (typeof io === 'undefined') {
             document.write('<script src="/socket.io/socket.io.js"><\/script>');
         }

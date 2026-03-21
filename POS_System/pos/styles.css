@@ -27,6 +27,20 @@ body {
     color: var(--text-primary);
     height: 100vh;
     overflow: hidden;
+	
+	/* 防止長按選取文字或彈出選單，增加 APP 感 */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    /* 移除行動裝置點擊的高亮藍色框 */
+    -webkit-tap-highlight-color: transparent;
+    /* 防止頁面橡皮筋回彈效果 */
+    overscroll-behavior-y: contain;
+}
+
+input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
 }
 
 .app-container {
