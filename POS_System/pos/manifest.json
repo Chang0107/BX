@@ -6,7 +6,7 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4A90E2",
-  "orientation": "portrait",
+  "orientation": "any",
   "icons": [
     {
       "src": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f1e6.png",

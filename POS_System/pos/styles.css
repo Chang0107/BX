@@ -656,3 +656,33 @@ input, textarea {
 .notification.show {
     transform: translateY(0);
 }
+
+
+/* 當螢幕寬度大於高度時（橫向模式） */
+@media (orientation: landscape) {
+    .app-container {
+        display: flex; /* 讓側邊欄跟主內容左右並排 */
+        flex-direction: row;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    .sidebar {
+        width: 250px; /* 固定側邊欄寬度 */
+        height: 100%;
+        border-right: 1px solid #ddd;
+    }
+
+    .main-content {
+        flex: 1; /* 讓主內容填滿剩餘空間 */
+        overflow-y: auto; /* 讓內容區可以獨立捲動 */
+        padding: 20px;
+    }
+    
+    /* 讓庫存網格在橫向時顯示更多列 */
+    .inventory-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+    }
+}
