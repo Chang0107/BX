@@ -1,5 +1,141 @@
 [
   {
+    "id": 1774081911736,
+    "time": "2026-03-21T08:31:51.736Z",
+    "action": "DETECT",
+    "item": "運動鞋",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1774081869731,
+    "time": "2026-03-21T08:31:09.731Z",
+    "action": "DETECT",
+    "item": "運動鞋",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081697920,
+    "time": "2026-03-21T08:28:17.920Z",
+    "action": "DETECT",
+    "item": "乖乖",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081673946,
+    "time": "2026-03-21T08:27:53.946Z",
+    "action": "DETECT",
+    "item": "浪味仙",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081637947,
+    "time": "2026-03-21T08:27:17.947Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1774081634397,
+    "time": "2026-03-21T08:27:14.397Z",
+    "action": "DETECT",
+    "item": "運動鞋",
+    "quantity": 1,
+    "details": "AI 偵測新增"
+  },
+  {
+    "id": 1774081633603,
+    "time": "2026-03-21T08:27:13.603Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1774081624482,
+    "time": "2026-03-21T08:27:04.482Z",
+    "action": "DETECT",
+    "item": "Ariel",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081604751,
+    "time": "2026-03-21T08:26:44.751Z",
+    "action": "DETECT",
+    "item": "運動鞋",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081581082,
+    "time": "2026-03-21T08:26:21.082Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1774081391509,
+    "time": "2026-03-21T08:23:11.509Z",
+    "action": "DETECT",
+    "item": "PUMA 運動鞋",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081348679,
+    "time": "2026-03-21T08:22:28.679Z",
+    "action": "DETECT",
+    "item": "卡迪那德州薯條 鱈魚香絲風味",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081302986,
+    "time": "2026-03-21T08:21:42.986Z",
+    "action": "DETECT",
+    "item": "椅子",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081273796,
+    "time": "2026-03-21T08:21:13.796Z",
+    "action": "MANUAL",
+    "item": "未知",
+    "quantity": 1,
+    "details": "手動移除物品"
+  },
+  {
+    "id": 1774081271335,
+    "time": "2026-03-21T08:21:11.335Z",
+    "action": "DETECT",
+    "item": "浪味仙",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081257767,
+    "time": "2026-03-21T08:20:57.767Z",
+    "action": "DETECT",
+    "item": "運動鞋",
+    "quantity": 1,
+    "details": "AI 偵測發現新物品"
+  },
+  {
+    "id": 1774081237482,
+    "time": "2026-03-21T08:20:37.482Z",
+    "action": "RESET",
+    "item": "系統",
+    "quantity": 0,
+    "details": "執行智慧重置"
+  },
+  {
     "id": 1773289944761,
     "time": "2026-03-12T04:32:24.761Z",
     "action": "MANUAL",

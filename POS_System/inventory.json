@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "id": 1774081673946,
+    "name": "浪味仙",
+    "quantity": 0,
+    "source": "A端偵測",
+    "lastUpdated": 1774081680491,
+    "isDetecting": false,
+    "lastDetectedQty": 1,
+    "expirationDate": ""
+  },
+  {
+    "id": 1774081697920,
+    "name": "乖乖",
+    "quantity": 0,
+    "source": "A端偵測",
+    "lastUpdated": 1774081703729,
+    "isDetecting": false,
+    "lastDetectedQty": 1,
+    "expirationDate": ""
+  },
+  {
+    "id": 1774081869731,
+    "name": "運動鞋",
+    "quantity": 1,
+    "source": "A端偵測",
+    "lastUpdated": 1774081911736,
+    "isDetecting": false,
+    "lastDetectedQty": 1,
+    "expirationDate": ""
+  }
+]

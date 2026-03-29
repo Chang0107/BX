@@ -14,15 +14,11 @@ import socketio
 # ==========================================
 # 設定區
 # ==========================================
-# Gemini API Key：可填多組，遇 429 / 額度不足時會依序輪替同一模型；全部 Key 都失敗後才切換下一個模型。
-# 亦可改用環境變數（優先於下列列表）：
+# Gemini API Key：請使用環境變數或 .env，不要將金鑰寫入程式碼。
+# 支援：
 #   - GEMINI_API_KEYS=key1,key2,key3
-#   - 或 GEMINI_API_KEY=單一 key
-API_KEYS = [
-    "AIzaSyB-VKaV6mTs6T2gG2V3nMKkNgtDXWgUlMA",  # 第一組 Key（請填入）
-    "AIzaSyDGZDVoppPMBHn3_0kjQDSJwH4Hisw8Frg",  # 第二組（選填）
-    # "",  # 更多組…
-]
+#   - GEMINI_API_KEY=單一 key
+API_KEYS = []  # 僅做最後備援，預設保持空白，避免誤提交金鑰
 
 YOLO_MODEL_NAME = 'yolo11n.pt' 
 FONT_PATH = "C:/Windows/Fonts/msjh.ttc" 
@@ -33,23 +29,45 @@ STABILITY_FRAMES = 20   # [調整] 增加到 20，確保物體真的停住才辨
 MAX_RPM = 5             # [調整] 大幅降低到 5，避免瞬間爆額度
 MAX_MISSING_FRAMES = 30 
 
+# 優先使用「正式版」名稱；*-exp / *-preview 可能隨 Google 下架而 404
 CANDIDATE_MODELS = [
-    "gemini-2.0-flash-exp",
-    "gemini-exp-1206",
-    "gemini-2.0-flash-lite-preview-02-05",
-    "gemini-2.0-flash-lite-preview",
-    "gemini-2.5-flash-lite-preview-09-2025",
-    "gemini-2.5-flash",  
-    "gemini-flash-latest",
+    "gemini-2.5-flash",
     "gemini-1.5-flash",
-    "gemini-1.5-flash-8b"
+    "gemini-1.5-flash-8b",
+    "gemini-flash-latest",
+    "gemini-2.5-flash-lite",
+    
 ]
 
 # ==========================================
 
 
+def _load_env_file():
+    """讀取同目錄 .env（若存在），且只設定尚未存在的環境變數。"""
+    env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if not os.path.exists(env_path):
+        return
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                # 略過空值，避免 GEMINI_API_KEY= 覆蓋成空字串導致讀不到金鑰
+                if not key or not value:
+                    continue
+                if key not in os.environ:
+                    os.environ[key] = value
+    except Exception as e:
+        print(f"⚠️ 讀取 .env 失敗: {e}")
+
+
 def _resolve_gemini_api_keys():
     """環境變數優先，否則使用上方 API_KEYS 列表（略過空字串）。"""
+    _load_env_file()
     env_multi = os.environ.get("GEMINI_API_KEYS", "").strip()
     if env_multi:
         return [k.strip() for k in env_multi.split(",") if k.strip()]
@@ -61,7 +79,7 @@ def _resolve_gemini_api_keys():
 
 RESOLVED_GEMINI_KEYS = _resolve_gemini_api_keys()
 if not RESOLVED_GEMINI_KEYS:
-    print("❌ 錯誤：請在 PC.py 的 API_KEYS 填入至少一組 Key，或設定環境變數 GEMINI_API_KEY / GEMINI_API_KEYS")
+    print("❌ 錯誤：請在 .env 或系統環境變數設定 GEMINI_API_KEY / GEMINI_API_KEYS")
     exit()
 
 
@@ -198,12 +216,24 @@ class SmartVisionSystem:
                 valid_list.append(name)
             except Exception as e:
                 err = str(e)
-                if "404" in err:
-                    print("❌ 不存在 (跳過)")
+                el = err.lower()
+                if "404" in err or "not found" in el or "is not found" in el:
+                    print("❌ 不存在或不支援 generateContent (跳過)")
                 else:
                     print("⚠️ 額度滿但存在 (保留)")
                     valid_list.append(name)
         return valid_list
+
+    @staticmethod
+    def _is_model_not_found_error(err_msg: str) -> bool:
+        """模型不存在、已下架或不支援 generateContent（應改試下一個模型名稱）。"""
+        u = err_msg.lower()
+        return (
+            "404" in err_msg
+            or "not found" in u
+            or "is not found" in u
+            or "not supported for generatecontent" in u
+        )
 
     @staticmethod
     def _is_quota_or_rate_limit_error(err_msg: str) -> bool:
@@ -216,6 +246,20 @@ class SmartVisionSystem:
             or "RATE LIMIT" in u
             or "RATE_LIMIT" in u
             or "TOO MANY REQUESTS" in u
+        )
+
+    @staticmethod
+    def _is_leaked_or_invalid_key_error(err_msg: str) -> bool:
+        """判斷是否為 Key 洩漏/無效/禁用類錯誤（應優先換 Key）。"""
+        u = err_msg.upper()
+        return (
+            "403" in err_msg
+            or "REPORTED AS LEAKED" in u
+            or "API_KEY_INVALID" in u
+            or "INVALID API KEY" in u
+            or "PERMISSION_DENIED" in u
+            or "API KEY NOT VALID" in u
+            or "API_KEY_SERVICE_BLOCKED" in u
         )
 
     def apply_current_api_key(self):
@@ -280,6 +324,37 @@ class SmartVisionSystem:
                         
                     except Exception as api_err:
                         err_msg = str(api_err)
+
+                        if self._is_leaked_or_invalid_key_error(err_msg):
+                            short = err_msg[:300] + ("..." if len(err_msg) > 300 else "")
+                            print(f" !! [API Key 異常] {short}")
+                            if len(self.api_keys) > 1:
+                                # 同模型下，遇到壞掉的 key 先換 key；一輪都壞才換模型
+                                self.rotate_next_api_key()
+                                quota_key_rotations += 1
+                                if quota_key_rotations >= len(self.api_keys):
+                                    quota_key_rotations = 0
+                                    attempts += 1
+                                    print(" !! 此模型下所有 API Key 都不可用，改切換模型...")
+                                    self.current_key_index = 0
+                                    genai.configure(api_key=self.api_keys[0])
+                                    time.sleep(2)
+                                    self.switch_next_model()
+                                continue
+                            else:
+                                attempts += 1
+                                time.sleep(2)
+                                self.switch_next_model()
+                                continue
+
+                        if self._is_model_not_found_error(err_msg):
+                            short = err_msg[:300] + ("..." if len(err_msg) > 300 else "")
+                            print(f" !! [模型不可用 404] {short}")
+                            print(" !! 將切換至下一個候選模型...")
+                            attempts += 1
+                            time.sleep(1)
+                            self.switch_next_model()
+                            continue
 
                         if self._is_quota_or_rate_limit_error(err_msg):
                             short = err_msg[:300] + ("..." if len(err_msg) > 300 else "")
