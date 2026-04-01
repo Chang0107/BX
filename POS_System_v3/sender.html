@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>程式 A: 物品偵測 (LAN版)</title>
+    <!-- 引入 Socket.io 客戶端 -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // 如果無法載入，嘗試 CDN
+        if (typeof io === 'undefined') {
+            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"><\/script>');
+        }
+    </script>
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; background-color: #f0f4f8; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="number"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 4px; }
+        
+        button { width: 100%; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; color: white; transition: 0.3s; }
+        .btn-send { background-color: #3498db; }
+        .btn-send:hover { background-color: #2980b9; }
+        
+        .auto-mode { margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffeeba; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #e67e22; }
+        input:checked + .slider:before { transform: translateX(26px); }
+
+        .status { margin-top: 15px; padding: 10px; background: #e8f6f3; color: #27ae60; text-align: center; border-radius: 4px; font-size: 14px; }
+        .log { margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; font-size: 12px; color: #666; height: 150px; overflow-y: auto; }
+        .status-disconnected { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>程式 A (區域網路版)</h2>
+    
+    <div class="status" id="connectionStatus">
+        🟡 連線中...
+    </div>
+
+    <div class="form-group">
+        <label>物品名稱:</label>
+        <input type="text" id="itemName" placeholder="例如：蘋果" value="蘋果">
+    </div>
+
+    <div class="form-group">
+        <label>數量:</label>
+        <input type="number" id="itemQty" value="1" min="1">
+    </div>
+
+    <button class="btn-send" onclick="sendItem(false)">單次發送 (手動)</button>
+
+    <div class="auto-mode">
+        <span style="font-weight:bold; color:#856404;">模擬持續偵測 (每1.5秒)</span>
+        <label class="switch">
+            <input type="checkbox" id="autoToggle" onchange="toggleAutoMode()">
+            <span class="slider"></span>
+        </label>
+    </div>
+
+    <div class="log" id="logArea">
+        <div>系統啟動...</div>
+    </div>
+</div>
+
+    <script>
+        // 自動連線到伺服器
+        const SERVER_URL = window.location.origin;
+        
+        let socket;
+        if (typeof io !== 'undefined') {
+            socket = io(SERVER_URL);
+        } else {
+            alert("無法載入 Socket.io 函式庫，請檢查網路連線或伺服器 IP 設定。");
+        }
+    
+    let autoInterval = null;
+
+    const statusDiv = document.getElementById('connectionStatus');
+
+    // 連線狀態監聽
+    socket.on('connect', () => {
+        statusDiv.innerHTML = "🟢 已連線到伺服器";
+        statusDiv.className = "status";
+    });
+
+    socket.on('disconnect', () => {
+        statusDiv.innerHTML = "🔴 與伺服器斷線";
+        statusDiv.className = "status status-disconnected";
+        // 斷線時自動停止持續偵測
+        if (document.getElementById('autoToggle').checked) {
+            document.getElementById('autoToggle').checked = false;
+            toggleAutoMode();
+        }
+    });
+
+    // 接收伺服器回傳的操作結果 (Log)
+    socket.on('log_response', (data) => {
+        const { name, action } = data;
+        if (action === 'DUPLICATE') {
+            log(`[忽略] ${name} (偵測中重複訊號)`);
+        } else if (action === 'ADD' || action === 'NEW') {
+            log(`[發送成功] ${name} 已更新`);
+        }
+    });
+
+    function log(message) {
+        const logArea = document.getElementById('logArea');
+        const time = new Date().toLocaleTimeString();
+        logArea.innerHTML = `<div>[${time}] ${message}</div>` + logArea.innerHTML;
+    }
+
+    function sendItem(isAutoMode) {
+        const nameInput = document.getElementById('itemName');
+        const qtyInput = document.getElementById('itemQty');
+        
+        const name = nameInput.value.trim();
+        const qty = parseInt(qtyInput.value);
+
+        if (!name || qty <= 0) {
+            if (!isAutoMode) alert("請輸入有效的名稱與數量");
+            return;
+        }
+
+        // 發送給伺服器
+        socket.emit('detect_item', {
+            name: name,
+            quantity: qty,
+            isAutoMode: isAutoMode
+        });
+
+        if (!isAutoMode) {
+            log(`[手動] 送出請求: ${name}`);
+        }
+    }
+
+    function toggleAutoMode() {
+        const isChecked = document.getElementById('autoToggle').checked;
+
+        if (isChecked) {
+            if (!socket.connected) {
+                alert("尚未連線到伺服器，無法開啟");
+                document.getElementById('autoToggle').checked = false;
+                return;
+            }
+            log("開啟持續偵測...");
+            statusDiv.innerHTML = "🟠 持續偵測中 (模擬感測器)";
+            
+            sendItem(true);
+            autoInterval = setInterval(() => {
+                sendItem(true);
+            }, 1500);
+        } else {
+            log("停止持續偵測");
+            if (socket.connected) {
+                statusDiv.innerHTML = "🟢 已連線到伺服器";
+            }
+            clearInterval(autoInterval);
+            autoInterval = null;
+        }
+    }
+</script>
+
+</body>
+</html>
