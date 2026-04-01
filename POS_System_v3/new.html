@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Fridge Kitchen OS</title>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #171717;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Helper component for Lucide icons in UMD mode
+        const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
+            const [iconContent, setIconContent] = React.useState(null);
+
+            React.useEffect(() => {
+                // Lucide generates SVG, but we need to use it in React
+                // For CMD/UMD, lucide is available globally
+                if (window.lucide && window.lucide.icons[name]) {
+                    const icon = window.lucide.icons[name];
+                    setIconContent(icon);
+                }
+            }, [name]);
+
+            if (!iconContent) return <div style={{width: size, height: size}} className={className} />;
+
+            return (
+                <svg
+                    width={size}
+                    height={size}
+                    viewBox="0 0 24 24"
+                    fill={fill}
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={className}
+                    dangerouslySetInnerHTML={{ __html: iconContent.map(i => `<${i[0]} ${Object.entries(i[1]).map(([k,v]) => `${k}="${v}"`).join(' ')} />`).join('') }}
+                />
+            );
+        };
+
+        // Define component constants for icons
+        const Cloud = (props) => <Icon name="Cloud" {...props} />;
+        const ChefHat = (props) => <Icon name="ChefHat" {...props} />;
+        const Snowflake = (props) => <Icon name="Snowflake" {...props} />;
+        const Users = (props) => <Icon name="Users" {...props} />;
+        const Home = (props) => <Icon name="Home" {...props} />;
+        const Wifi = (props) => <Icon name="Wifi" {...props} />;
+        const Bluetooth = (props) => <Icon name="Bluetooth" {...props} />;
+        const Mic = (props) => <Icon name="Mic" {...props} />;
+        const Plus = (props) => <Icon name="Plus" {...props} />;
+        const Trash2 = (props) => <Icon name="Trash2" {...props} />;
+        const Clock = (props) => <Icon name="Clock" {...props} />;
+        const Calendar = (props) => <Icon name="Calendar" {...props} />;
+        const ChevronRight = (props) => <Icon name="ChevronRight" {...props} />;
+        const Play = (props) => <Icon name="Play" {...props} />;
+        const Pause = (props) => <Icon name="Pause" {...props} />;
+        const SkipForward = (props) => <Icon name="SkipForward" {...props} />;
+        const ShoppingCart = (props) => <Icon name="ShoppingCart" {...props} />;
+        const Check = (props) => <Icon name="Check" {...props} />;
+        const ArrowLeft = (props) => <Icon name="ArrowLeft" {...props} />;
+        const ArrowRight = (props) => <Icon name="ArrowRight" {...props} />;
+        const RefreshCw = (props) => <Icon name="RefreshCw" {...props} />;
+        const Music = (props) => <Icon name="Music" {...props} />;
+        const X = (props) => <Icon name="X" {...props} />;
+
+        const { useState, useEffect, useRef } = React;
+
+        // --- Helper Logic ---
+
+        const ICON_MAP = {
+            'tea': '🍵',
+            'banana': '🍌',
+            'water': '💧',
+            'apple': '🍎',
+            'milk': '🥛',
+            'default': '📦'
+        };
+
+        const mapInventoryData = (serverData) => {
+            return serverData.map(item => {
+                let days = 7; 
+                if (item.expirationDate) {
+                    const exp = new Date(item.expirationDate);
+                    const now = new Date();
+                    const diffTime = exp.getTime() - now.getTime();
+                    days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    if (isNaN(days)) days = 7;
+                }
+
+                let status = 'good';
+                if (days <= 3) status = 'danger';
+                else if (days <= 7) status = 'warning';
+
+                const icon = ICON_MAP[item.name.toLowerCase()] || ICON_MAP['default'];
+
+                return {
+                    id: item.id,
+                    name: item.name,
+                    displayName: `${item.name} (${item.quantity})`,
+                    quantity: item.quantity,
+                    days: days > 0 ? days : 0,
+                    status,
+                    icon,
+                    raw: item // Keep reference to original data
+                };
+            });
+        };
+
+        // --- Sub-Components ---
+
+        // 1. 頂部狀態列
+        const StatusBar = () => (
+            <div className="flex justify-between items-center px-8 py-5 text-white/80 shrink-0 z-30 relative">
+                <div className="flex items-center space-x-6">
+                    <span className="text-2xl font-light tracking-widest font-mono text-white drop-shadow-md">
+                        {new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <div className="flex space-x-2 text-sm bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full text-white/90">
+                        <span>24°C</span>
+                        <span className="opacity-30">|</span>
+                        <span>室內</span>
+                    </div>
+                </div>
+                <div className="flex items-center space-x-6">
+                    <Wifi size={20} className="text-white/80" />
+                    <Bluetooth size={20} className="text-white/80" />
+                    <Mic size={20} className="text-white/80" />
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-600 border-2 border-white/50 flex items-center justify-center text-sm font-bold shadow-lg cursor-pointer hover:scale-105 transition-transform text-white">
+                        媽
+                    </div>
+                </div>
+            </div>
+        );
+
+        // 2. 側邊導航欄 (固定左側，層級最高)
+        const NavBar = ({ current, setView }) => {
+            const navItems = [
+                { id: 'dashboard', icon: Home, label: '首頁' },
+                { id: 'inventory', icon: Snowflake, label: '食材' },
+                { id: 'cooking', icon: ChefHat, label: '烹飪' },
+                { id: 'family', icon: Users, label: '家庭' },
+                { id: 'shopping', icon: ShoppingCart, label: '清單' },
+            ];
+
+            return (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 flex flex-col space-y-3 p-3 pl-4 bg-slate-900/60 backdrop-blur-xl rounded-r-3xl border-y border-r border-white/10 shadow-2xl z-50">
+                    {navItems.map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => setView(item.id)}
+                            className={`flex flex-col items-center justify-center w-20 h-20 rounded-2xl transition-all duration-200 active:scale-95 group ${
+                                current === item.id 
+                                    ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-105 ring-1 ring-white/20' 
+                                    : 'text-white/40 hover:bg-white/10 hover:text-white'
+                            }`}
+                        >
+                            <item.icon size={26} className={`mb-1.5 transition-transform ${current === item.id ? 'scale-110' : 'group-hover:scale-110'}`} />
+                            <span className="text-[11px] font-medium tracking-wide">{item.label}</span>
+                        </button>
+                    ))}
+                </div>
+            );
+        };
+
+        // 3. 待機畫面 (Ambient Mode)
+        const AmbientScreen = ({ onWake }) => (
+            <div 
+                onClick={onWake}
+                className="absolute inset-0 z-50 flex flex-col justify-between p-16 cursor-pointer bg-cover bg-center transition-all duration-1000 group"
+                style={{ 
+                    backgroundImage: 'url("https://images.unsplash.com/photo-1493246507139-91e8fad9978e?ixlib=rb-4.0.3&auto=format&fit=crop&w=2940&q=80")',
+                }}
+            >
+                <div className="absolute inset-0 bg-black/40 group-hover:bg-black/30 transition-colors duration-500 backdrop-blur-[2px]" />
+
+                {/* Top Section */}
+                <div className="relative z-10 flex justify-between items-start animate-fade-in">
+                    <div>
+                        <h1 className="text-9xl font-thin text-white tracking-tighter drop-shadow-xl font-mono">09:41</h1>
+                        <p className="text-3xl text-white/90 mt-2 font-light drop-shadow-lg pl-2">11月28日 星期五</p>
+                    </div>
+                    
+                    <div className="flex items-center space-x-6 text-white/90 bg-black/30 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-2xl">
+                        <Cloud size={64} className="drop-shadow-md text-blue-200" />
+                        <div>
+                            <p className="text-6xl font-light drop-shadow-md">18°C</p>
+                            <p className="text-lg font-medium drop-shadow-md mt-1 opacity-80">多雲時晴 • 降雨 10%</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bottom Section */}
+                <div className="relative z-10 flex justify-between items-end">
+                    {/* Sticky Note */}
+                    <div className="transform rotate-2 bg-[#ffeb3b] text-slate-900 p-6 shadow-[0_10px_40px_rgba(0,0,0,0.3)] max-w-sm font-handwriting rounded-sm hover:scale-105 transition-transform duration-300 border-t border-white/20">
+                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-6 bg-white/40 backdrop-blur-sm transform -rotate-2 shadow-sm"></div>
+                        <p className="font-bold text-lg mb-2 text-slate-900/80">給 爸爸：</p>
+                        <p className="font-medium text-lg leading-relaxed">晚餐的咖哩在第二層，熱一下就可以吃了！記得要把飯吃完喔。</p>
+                        <p className="text-right mt-4 text-base font-bold text-slate-600">- 媽媽</p>
+                    </div>
+
+                    <div className="text-white/60 animate-pulse text-lg font-light tracking-widest pb-4 pr-4 drop-shadow-md">
+                        輕觸喚醒 KITCHEN OS
+                    </div>
+                </div>
+            </div>
+        );
+
+        // 4. 首頁 (Dashboard)
+        const Dashboard = ({ changeView, inventory }) => {
+            const [timerActive, setTimerActive] = useState(true);
+            const [musicPlaying, setMusicPlaying] = useState(false);
+            const [synced, setSynced] = useState(false);
+
+            const expiringCount = inventory.filter(item => item.status === 'danger' || item.status === 'warning').length;
+
+            // Simulate timer countdown for visual effect
+            const [timeLeft, setTimeLeft] = useState(14 * 60 + 20); // 14:20
+            useEffect(() => {
+                if(!timerActive) return;
+                const interval = setInterval(() => setTimeLeft(t => t > 0 ? t - 1 : 0), 1000);
+                return () => clearInterval(interval);
+            }, [timerActive]);
+
+            const formatTime = (seconds) => {
+                const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                return `${m}:${s}`;
+            };
+
+            return (
+                <div className="pl-32 pr-8 py-4 h-full flex gap-6 animate-fade-in">
+                    
+                    {/* Left Column (Main) */}
+                    <div className="flex-[2] flex flex-col gap-5 min-h-0">
+                        {/* Header */}
+                        <div className="flex justify-between items-end mb-2">
+                            <div>
+                                <h2 className="text-4xl text-white font-light drop-shadow-md">早安，<span className="font-bold">陳家人</span></h2>
+                                <p className="text-white/60 text-lg mt-1">今天有 3 個行程，冰箱裡有 {expiringCount} 樣食材快過期。</p>
+                            </div>
+                            <button className="bg-white/10 hover:bg-white/20 text-white/90 px-4 py-2 rounded-full flex items-center gap-2 backdrop-blur-md transition-all active:scale-95 border border-white/10 text-sm">
+                                <Plus size={16}/> 新增便利貼
+                            </button>
+                        </div>
+
+                        {/* Widget Row */}
+                        <div className="grid grid-cols-2 gap-5 h-48">
+                            {/* Timer Widget */}
+                            <div className="bg-slate-800/40 backdrop-blur-md rounded-3xl p-5 border border-white/5 flex flex-col justify-between shadow-lg relative overflow-hidden group">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                                
+                                <div className="flex justify-between items-center text-white relative z-10">
+                                    <span className="flex items-center gap-2 text-base font-medium text-orange-200"><Clock size={18}/> 烤箱 (全雞)</span>
+                                    <button 
+                                        onClick={() => setTimerActive(!timerActive)}
+                                        className={`px-3 py-1 rounded-full text-xs font-bold transition-all active:scale-95 ${timerActive ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-white/10 text-white/50'}`}
+                                    >
+                                        {timerActive ? '進行中' : '已暫停'}
+                                    </button>
+                                </div>
+                                
+                                <div className="relative z-10">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className={`text-5xl font-mono tracking-wider transition-colors ${timerActive ? 'text-white' : 'text-white/30'}`}>{formatTime(timeLeft)}</span>
+                                    </div>
+                                    <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden mt-3">
+                                        <div className={`h-full rounded-full transition-all duration-1000 ${timerActive ? 'w-2/3 bg-orange-500 shadow-[0_0_10px_orange]' : 'w-2/3 bg-white/20'}`}></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Smart Defrost Widget */}
+                            <div className="bg-gradient-to-br from-blue-600/20 to-indigo-600/20 backdrop-blur-md rounded-3xl p-5 border border-blue-500/20 flex flex-col justify-between shadow-lg relative overflow-hidden">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="font-bold text-lg text-white mb-0.5">智慧解凍</h3>
+                                        <p className="text-xs text-blue-200 bg-blue-500/20 px-2 py-0.5 rounded inline-block">變溫層 • 牛排</p>
+                                    </div>
+                                    <div className="bg-blue-500/20 p-2 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+                                        <Snowflake className="text-blue-300 animate-[spin_8s_linear_infinite]" size={20} />
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <div className="flex justify-between text-blue-100 text-xs mb-1.5 font-medium">
+                                        <span>進度</span>
+                                        <span>剩 45 分</span>
+                                    </div>
+                                    <div className="w-full bg-blue-950/50 h-2 rounded-full overflow-hidden border border-blue-500/10">
+                                        <div className="w-[60%] h-full bg-gradient-to-r from-blue-400 to-indigo-400 rounded-full shadow-[0_0_10px_#60a5fa]"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Chef Suggestion Banner */}
+                        <div 
+                            onClick={() => changeView('cooking')}
+                            className="bg-white/5 border border-white/10 rounded-3xl p-4 pr-6 flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer group active:scale-[0.99] shadow-md"
+                        >
+                            <div className="flex items-center gap-5">
+                                <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-300">
+                                    <ChefHat size={32} className="text-white drop-shadow-md"/>
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-bold text-lg">晚餐吃什麼？</h3>
+                                    <p className="text-white/50 text-sm">AI 推薦：香煎鮭魚佐時蔬</p>
+                                </div>
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/50 group-hover:bg-white/20 group-hover:text-white transition-all">
+                                <ChevronRight size={20}/>
+                            </div>
+                        </div>
+
+                        {/* Mini Music Player */}
+                        <div className="bg-black/20 backdrop-blur-sm rounded-3xl p-4 border border-white/5 flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${musicPlaying ? 'bg-green-500 text-white' : 'bg-white/10 text-white/50'}`}>
+                                <Music size={20} />
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                                <p className="text-white text-sm font-medium truncate">Morning Jazz Playlist</p>
+                                <p className="text-white/40 text-xs truncate">Spotify</p>
+                            </div>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setMusicPlaying(!musicPlaying); }}
+                                className="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center text-white transition-colors active:scale-95"
+                            >
+                                {musicPlaying ? <Pause size={20} className="fill-current"/> : <Play size={20} className="fill-current ml-1"/>}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Right Column (Calendar) */}
+                    <div className="flex-1 bg-slate-800/40 backdrop-blur-md rounded-3xl p-6 border border-white/5 shadow-lg flex flex-col h-full min-h-0">
+                        <div className="flex items-center justify-between mb-5 shrink-0">
+                            <h3 className="text-white font-medium flex items-center gap-2 text-lg"><Calendar size={20} className="text-blue-400"/> 今日行程</h3>
+                            <button 
+                                onClick={() => setSynced(true)}
+                                disabled={synced}
+                                className={`p-2 rounded-full border transition-all active:scale-95 ${synced ? 'border-green-500/50 text-green-400 bg-green-500/10' : 'border-blue-300/50 text-blue-300 hover:bg-blue-300/10'}`}
+                            >
+                                {synced ? <Check size={16}/> : <RefreshCw size={16}/>}
+                            </button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto pr-2 space-y-3 no-scrollbar pb-2">
+                            {[
+                                { time: '15:00', title: '小明 - 鋼琴課', color: 'bg-blue-500', desc: '記得帶樂譜' },
+                                { time: '18:30', title: '全聯採購', color: 'bg-green-500', action: () => changeView('shopping'), desc: '牛奶, 雞蛋, 洗衣精' },
+                                { time: '20:00', title: '家庭電影夜', color: 'bg-purple-500', desc: 'Disney+ (腦筋急轉彎2)' },
+                                { time: '明天', title: '繳交電費', color: 'bg-red-500', desc: '$2,450' },
+                                { time: '後天', title: '爺爺生日聚餐', color: 'bg-orange-500', desc: '餐廳訂位 18:00' },
+                            ].map((item, idx) => (
+                                <div 
+                                    key={idx} 
+                                    onClick={item.action}
+                                    className={`flex flex-col text-white/90 p-4 rounded-2xl transition-all border border-transparent bg-white/5 ${item.action ? 'cursor-pointer hover:bg-white/10 hover:border-white/10 active:scale-[0.98] group' : ''}`}
+                                >
+                                    <div className="flex items-center mb-1.5 justify-between">
+                                        <div className="flex items-center">
+                                            <div className={`w-2 h-2 rounded-full ${item.color} mr-3 shadow-[0_0_8px_currentColor]`}></div>
+                                            <span className="font-mono opacity-60 text-xs tracking-wide">{item.time}</span>
+                                        </div>
+                                        {item.action && <ChevronRight size={14} className="opacity-0 group-hover:opacity-50 transition-opacity"/>}
+                                    </div>
+                                    <span className="text-base font-medium">{item.title}</span>
+                                    {item.desc && <span className="text-white/40 text-xs mt-0.5">{item.desc}</span>}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 5. 智慧食材庫 (Inventory)
+        const InventoryView = ({ toCooking, inventory, onUpdate }) => {
+            const [editingId, setEditingId] = useState(null);
+            const [editName, setEditName] = useState('');
+            const [editQty, setEditQty] = useState(0);
+
+            const expiringCount = inventory.filter(item => item.status === 'danger' || item.status === 'warning').length;
+
+            const startEdit = (item) => {
+                setEditingId(item.id);
+                setEditName(item.name);
+                setEditQty(item.quantity);
+            };
+
+            const cancelEdit = () => {
+                setEditingId(null);
+            };
+
+            const saveEdit = (id) => {
+                const newInventory = inventory.map(item => {
+                    if (item.id === id) {
+                        return { 
+                            ...item.raw, 
+                            name: editName, 
+                            quantity: parseInt(editQty) || 0,
+                            lastUpdated: Date.now()
+                        };
+                    }
+                    return item.raw;
+                });
+                onUpdate(newInventory);
+                setEditingId(null);
+            };
+
+            const addItem = () => {
+                const newId = Date.now();
+                const newItem = { 
+                    id: newId, 
+                    name: '新食材', 
+                    quantity: 1, 
+                    source: '手動新增', 
+                    lastUpdated: newId, 
+                    isDetecting: false, 
+                    lastDetectedQty: 1, 
+                    expirationDate: '' 
+                };
+                onUpdate([...inventory.map(i => i.raw), newItem]);
+            };
+
+            const removeItem = (id) => {
+                onUpdate(inventory.filter(i => i.id !== id).map(i => i.raw));
+            }
+
+            return (
+                <div className="h-full pl-32 pr-8 pt-6 pb-6 flex flex-col animate-fade-in">
+                <div className="flex justify-between items-center mb-6 shrink-0">
+                    <h2 className="text-4xl text-white font-light">食材透視</h2>
+                    <div className="flex gap-3">
+                        <span className="text-xs text-red-300 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/20 font-medium flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div> {expiringCount} 項即將過期
+                        </span>
+                        <button onClick={addItem} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-blue-900/50">
+                        <Plus size={16} /> 新增
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto no-scrollbar pr-2 pb-10">
+                    <div className="grid grid-cols-4 gap-4">
+                        {inventory.map((item) => (
+                        <div key={item.id} className="bg-slate-800/40 border border-white/5 rounded-2xl p-4 flex flex-col justify-between hover:bg-white/5 transition-all group relative h-36">
+                            {editingId === item.id ? (
+                                <div className="flex flex-col gap-2 z-20">
+                                    <input 
+                                        type="text" 
+                                        value={editName} 
+                                        onChange={(e) => setEditName(e.target.value)}
+                                        className="bg-slate-700 text-white text-xs p-1 rounded border border-white/20"
+                                    />
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="number" 
+                                            value={editQty} 
+                                            onChange={(e) => setEditQty(e.target.value)}
+                                            className="bg-slate-700 text-white text-xs p-1 rounded border border-white/20 w-16"
+                                        />
+                                        <button onClick={() => saveEdit(item.id)} className="bg-green-600 text-white text-[10px] px-2 py-1 rounded">存</button>
+                                        <button onClick={cancelEdit} className="bg-slate-600 text-white text-[10px] px-2 py-1 rounded">回</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex flex-col gap-1 cursor-pointer" onClick={() => startEdit(item)}>
+                                            <div className="text-3xl filter drop-shadow-sm">{item.icon}</div>
+                                            <h4 className="text-white font-medium text-base mt-2 truncate w-32">{item.displayName}</h4>
+                                        </div>
+                                        <button onClick={(e) => { e.stopPropagation(); removeItem(item.id); }} className="text-white/20 hover:text-red-400 p-1.5 hover:bg-white/10 rounded-full transition-all active:scale-90">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-center justify-between mt-auto pt-2">
+                                        <div className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${ item.status==='danger' ? 'bg-red-500/20 text-red-300 border border-red-500/20' : item.status==='warning' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/20' : 'bg-green-500/20 text-green-400 border border-green-500/20' }`}>
+                                        <Clock size={10} /> {item.days} 天
+                                        </div>
+
+                                        {item.status === 'danger' && (
+                                        <button onClick={toCooking} className="w-7 h-7 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90" title="找食譜">
+                                        <ChefHat size={14} />
+                                        </button>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        ))}
+
+                            <div className="flex items-center justify-between mt-auto pt-2">
+                                <div className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${ item.status==='danger' ? 'bg-red-500/20 text-red-300 border border-red-500/20' : item.status==='warning' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/20' : 'bg-green-500/20 text-green-400 border border-green-500/20' }`}>
+                                <Clock size={10} /> {item.days} 天
+                                </div>
+
+                                {item.status === 'danger' && (
+                                <button onClick={toCooking} className="w-7 h-7 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90" title="找食譜">
+                                <ChefHat size={14} />
+                                </button>
+                                )}
+                            </div>
+                        </div>
+                        ))}
+
+                        <button onClick={addItem} className="border border-dashed border-white/10 rounded-2xl p-4 flex flex-col items-center justify-center text-white/20 hover:text-white/60 hover:border-white/30 hover:bg-white/5 transition-all h-36 active:scale-95 group">
+                            <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                <Plus size={20} />
+                            </div>
+                            <span className="text-xs font-medium">手動輸入</span>
+                        </button>
+                    </div>
+                </div>
+                </div>
+            );
+        };
+
+        // 6. 烹飪模式 (Chef Mode)
+        const CookingView = () => {
+            const [step, setStep] = useState(0);
+            const [listening, setListening] = useState(false);
+
+            const recipeSteps = [
+                { text: "鮭魚抹上海鹽與黑胡椒，靜置 10 分鐘。", tip: "提前回溫口感更佳。", img: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" },
+                { text: "平底鍋中火熱油，至出現油紋。", tip: "約 150 度。", img: "https://images.unsplash.com/photo-1590794056226-79ef3a8147e1?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" },
+                { text: "魚皮朝下，大火煎 3 分鐘至金黃。", tip: "勿急翻面。", img: "https://images.unsplash.com/photo-1467003909585-2f8a7270028d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" },
+                { text: "翻面轉中小火，續煎 2 分鐘。", tip: "輕壓有彈性即熟。", img: "https://images.unsplash.com/photo-1580476262716-6b3693166861?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" },
+                { text: "起鍋擺盤，擠上檸檬汁。", tip: "趁熱享用！", img: "https://images.unsplash.com/photo-1485921325833-c519f76c4927?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" }
+            ];
+
+            return (
+                <div className="h-full pl-32 pr-8 pt-6 flex flex-col pb-6 animate-fade-in">
+                    <div className="flex items-center justify-between mb-4 shrink-0">
+                        <div className="flex items-center gap-4">
+                            <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-600/20">
+                                <ChefHat size={24} className="text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl text-white font-bold tracking-wide">香煎鮭魚</h2>
+                                <p className="text-white/50 flex items-center gap-2 text-xs">
+                                    <Clock size={12} /> 25 分鐘 • 簡易
+                                </p>
+                            </div>
+                        </div>
+                        <button onClick={() => setListening(!listening)} className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 transition-all active:scale-95 ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-700 hover:bg-slate-600 text-white border border-white/10'}`}>
+                            <Mic size={16} /> {listening ? '聆聽中...' : '語音控制'}
+                        </button>
+                    </div>
+
+                    <div className="flex-1 flex gap-6 min-h-0">
+                        <div className="w-[45%] h-full bg-black rounded-3xl border border-white/10 relative overflow-hidden group shadow-2xl">
+                            <img src={recipeSteps[step].img} className="w-full h-full object-cover opacity-80 transition-all duration-700 group-hover:scale-105" alt="Cooking" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-transparent transition-colors pointer-events-none">
+                                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 shadow-xl">
+                                    <Play size={28} className="text-white ml-1 fill-current" />
+                                </div>
+                            </div>
+
+                            <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10">
+                                <div className="flex gap-1.5 h-1 w-full">
+                                    {recipeSteps.map((_, i) => (
+                                        <div key={i} className={`h-full rounded-full flex-1 transition-colors ${i <= step ? 'bg-blue-500' : 'bg-white/20'}`} />
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 bg-slate-800/40 backdrop-blur-md rounded-3xl p-6 border border-white/5 flex flex-col justify-between">
+                            <div>
+                                <div className="inline-flex items-center gap-2 bg-blue-600/20 text-blue-300 px-3 py-1 rounded-full font-bold text-xs mb-4 border border-blue-500/20">
+                                    步驟 {step + 1} / {recipeSteps.length}
+                                </div>
+                                <p className="text-3xl text-white font-bold leading-snug mb-6">
+                                    {recipeSteps[step].text}
+                                </p>
+                                <div className="p-4 bg-yellow-500/5 border-l-2 border-yellow-500 rounded-r-xl">
+                                    <p className="text-yellow-100/80 text-sm font-medium flex gap-2">
+                                        <span className="font-bold text-yellow-500 shrink-0">💡 提示：</span>
+                                        {recipeSteps[step].tip}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4 mt-4">
+                                <button onClick={() => step > 0 && setStep(step - 1)} disabled={step === 0} className="w-16 h-16 rounded-2xl border border-white/10 flex items-center justify-center text-white hover:bg-white/5 disabled:opacity-30 transition-all active:scale-95">
+                                    <ArrowLeft size={24} />
+                                </button>
+                                <button onClick={() => step < recipeSteps.length - 1 && setStep(step + 1)} disabled={step === recipeSteps.length - 1} className="flex-1 h-16 rounded-2xl bg-white text-slate-900 font-bold text-lg hover:bg-blue-50 flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:bg-gray-500 disabled:text-white active:scale-95 shadow-lg">
+                                    {step === recipeSteps.length - 1 ? '完成' : <React.Fragment>下一步 <ArrowRight size={20} /></React.Fragment>}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // 7. 家庭塗鴉牆 (Canvas Implementation)
+        const FamilyBoard = () => {
+            const canvasRef = useRef(null);
+            const [isDrawing, setIsDrawing] = useState(false);
+            const [color, setColor] = useState('#ffffff');
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (canvas) {
+                    canvas.width = canvas.offsetWidth;
+                    canvas.height = canvas.offsetHeight;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.strokeStyle = color;
+                        ctx.lineWidth = 3;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                    }
+                }
+            }, []);
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if(canvas){
+                    const ctx = canvas.getContext('2d');
+                    if(ctx) ctx.strokeStyle = color;
+                }
+            }, [color]);
+
+            const startDrawing = (e) => {
+                setIsDrawing(true);
+                draw(e);
+            };
+
+            const stopDrawing = () => {
+                setIsDrawing(false);
+                const canvas = canvasRef.current;
+                if(canvas){
+                    const ctx = canvas.getContext('2d');
+                    if(ctx) ctx.beginPath();
+                }
+            };
+
+            const draw = (e) => {
+                if (!isDrawing) return;
+                const canvas = canvasRef.current;
+                const ctx = canvas?.getContext('2d');
+                if (!canvas || !ctx) return;
+
+                const rect = canvas.getBoundingClientRect();
+                let x, y;
+                if (e.touches) {
+                    x = e.touches[0].clientX - rect.left;
+                    y = e.touches[0].clientY - rect.top;
+                } else {
+                    x = e.clientX - rect.left;
+                    y = e.clientY - rect.top;
+                }
+
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+            };
+
+            const clearCanvas = () => {
+                const canvas = canvasRef.current;
+                const ctx = canvas?.getContext('2d');
+                if(canvas && ctx) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            };
+
+            const colors = ['#ffffff', '#facc15', '#f87171', '#60a5fa', '#4ade80'];
+
+            return (
+                <div className="h-full pl-32 pr-8 pt-6 flex flex-col pb-6 animate-fade-in">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-3xl text-white font-light">塗鴉牆</h2>
+                    <div className="flex items-center gap-2 bg-slate-800/50 p-1.5 rounded-full border border-white/10 backdrop-blur-md">
+                    {colors.map(c => (
+                    <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full border-2 transition-transform active:scale-90 ${color === c ? 'border-white scale-110 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'}`} style={{backgroundColor: c}} />
+                    ))}
+                    <div className="w-px h-6 bg-white/20 mx-2"></div>
+                    <button onClick={clearCanvas} className="text-white/60 hover:text-white p-2 hover:bg-white/10 rounded-full active:scale-90 transition-all">
+                        <Trash2 size={18} />
+                    </button>
+                    </div>
+                </div>
+                <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl relative overflow-hidden cursor-crosshair touch-none shadow-inner active:border-white/20 transition-colors">
+                    <canvas ref={canvasRef} onMouseDown={startDrawing} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} onMouseMove={draw} onTouchStart={startDrawing} onTouchEnd={stopDrawing} onTouchMove={draw} className="w-full h-full" />
+                    <div className="absolute bottom-4 right-4 text-white/10 text-sm select-none pointer-events-none font-medium">
+                    Canvas Drawing Area
+                    </div>
+                </div>
+                </div>
+            );
+        };
+
+        // 8. 購物清單 (Shopping List)
+        const ShoppingListView = () => {
+            const [items, setItems] = useState([
+                { id: 1, name: '全脂牛奶 (2L)', checked: false },
+                { id: 2, name: '洗碗精', checked: true },
+                { id: 3, name: '義大利麵條', checked: false },
+                { id: 4, name: '衛生紙', checked: false },
+                { id: 5, name: '橄欖油', checked: false },
+            ]);
+            const [newItemName, setNewItemName] = useState('');
+
+            const toggleItem = (id) => {
+                setItems(items.map(i => i.id === id ? { ...i, checked: !i.checked } : i));
+            };
+
+            const addItem = () => {
+                if (!newItemName.trim()) return;
+                setItems([...items, { id: Date.now(), name: newItemName, checked: false }]);
+                setNewItemName('');
+            };
+
+            const deleteItem = (id) => {
+                setItems(items.filter(i => i.id !== id));
+            };
+
+            return (
+                <div className="h-full pl-32 pr-8 pt-6 flex flex-col pb-6 animate-fade-in">
+                    <h2 className="text-3xl text-white font-light mb-6">購物清單</h2>
+                    <div className="flex gap-6 h-full min-h-0">
+                        <div className="flex-1 flex flex-col min-h-0">
+                            <div className="flex gap-3 mb-4 shrink-0">
+                                <div className="flex-1 bg-white/10 border border-white/10 rounded-2xl flex items-center px-4 focus-within:border-blue-400 focus-within:bg-white/15 transition-all h-14">
+                                    <Plus size={20} className="text-white/40 mr-3" />
+                                    <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addItem()} placeholder="新增項目..." className="bg-transparent border-none outline-none text-white text-base h-full w-full placeholder-white/30" />
+                                </div>
+                                <button onClick={addItem} className="bg-blue-600 hover:bg-blue-500 text-white w-14 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
+                                    <Plus size={24} />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto space-y-2 pr-2 no-scrollbar">
+                                {items.filter(i => !i.checked).map(item => (
+                                    <div key={item.id} className="group flex items-center justify-between p-4 rounded-xl border transition-all duration-200 bg-slate-800/50 border-white/5 hover:bg-slate-700/50 active:scale-[0.99]">
+                                        <div className="flex items-center gap-4 flex-1 cursor-pointer" onClick={() => toggleItem(item.id)}>
+                                            <div className="w-6 h-6 rounded-full border-2 border-white/30 group-hover:border-blue-400 flex items-center justify-center transition-colors"></div>
+                                            <span className="text-lg text-white/90">{item.name}</span>
+                                        </div>
+                                        <button onClick={() => deleteItem(item.id)} className="text-white/20 hover:text-red-400 p-2 opacity-0 group-hover:opacity-100 transition-all active:scale-90">
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="w-1/3 bg-black/20 rounded-3xl p-5 border border-white/5 flex flex-col min-h-0">
+                            <h3 className="text-white/40 font-bold mb-3 flex items-center gap-2 text-sm uppercase tracking-wider shrink-0">
+                                <Check size={14} /> 已購買
+                            </h3>
+                            <div className="flex-1 overflow-y-auto space-y-2 pr-2 no-scrollbar">
+                                {items.filter(i => i.checked).map(item => (
+                                    <div key={item.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 opacity-50 hover:opacity-100 transition-all">
+                                        <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => toggleItem(item.id)}>
+                                            <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
+                                                <Check size={10} className="text-white" />
+                                            </div>
+                                            <span className="text-white line-through decoration-white/30 text-sm">{item.name}</span>
+                                        </div>
+                                        <button onClick={() => deleteItem(item.id)} className="text-white/20 hover:text-white">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- Main App Component ---
+
+        function SmartFridgeUI() {
+            const [isAmbient, setIsAmbient] = useState(true);
+            const [currentView, setCurrentView] = useState('dashboard');
+            const [inventory, setInventory] = useState([]);
+
+            const socketRef = useRef(null);
+
+            useEffect(() => {
+                // Initialize socket connection
+                const socket = io(); 
+                socketRef.current = socket;
+
+                socket.on('init_data', (data) => {
+                    if (data && data.inventory) {
+                        setInventory(mapInventoryData(data.inventory));
+                    }
+                });
+
+                socket.on('update_data', (data) => {
+                    if (data) {
+                        setInventory(mapInventoryData(data));
+                    }
+                });
+
+                return () => socket.disconnect();
+            }, []);
+
+            const handleUpdate = (newRawInventory) => {
+                if (socketRef.current) {
+                    socketRef.current.emit('manual_update', newRawInventory);
+                } else {
+                    // Fallback for no connection
+                    setInventory(mapInventoryData(newRawInventory));
+                }
+            };
+
+            return (
+                <div className="flex items-center justify-center min-h-screen bg-neutral-900 p-8 font-sans select-none">
+                    <div className="relative w-[960px] h-[640px] bg-slate-900 rounded-[32px] shadow-[0_0_80px_rgba(0,0,0,0.8)] overflow-hidden border-[12px] border-slate-800 ring-1 ring-white/10">
+                        <div className="relative w-full h-full bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] overflow-hidden text-white flex flex-col">
+                            {isAmbient && <AmbientScreen onWake={() => setIsAmbient(false)} />}
+                            <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-600/5 blur-[120px] pointer-events-none rounded-full translate-x-[-20%] translate-y-[-20%]"></div>
+                            <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-600/5 blur-[120px] pointer-events-none rounded-full translate-x-[20%] translate-y-[20%]"></div>
+                            <StatusBar />
+                            <div className="flex-1 relative z-10 overflow-hidden flex">
+                                <NavBar current={currentView} setView={setCurrentView} />
+                                <div className="flex-1 h-full overflow-hidden relative">
+                                    {currentView === 'dashboard' && <Dashboard changeView={setCurrentView} inventory={inventory} />}
+                                    {currentView === 'inventory' && <InventoryView toCooking={() => setCurrentView('cooking')} inventory={inventory} onUpdate={handleUpdate} />}
+                                    {currentView === 'cooking' && <CookingView />}
+                                    {currentView === 'family' && <FamilyBoard />}
+                                    {currentView === 'shopping' && <ShoppingListView />}
+                                </div>
+                            </div>
+                            {!isAmbient && (
+                                <button onClick={() => setIsAmbient(true)} className="absolute bottom-6 left-6 w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-white/30 hover:text-white flex items-center justify-center backdrop-blur-md transition-all z-[60] active:scale-90 border border-white/5 group" title="進入待機模式">
+                                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_currentColor] group-hover:scale-125 transition-transform"></div>
+                                </button>
+                            )}
+                        </div>
+                        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none opacity-30 rounded-[20px] z-[70]"></div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SmartFridgeUI />);
+    </script>
+</body>
+</html>
