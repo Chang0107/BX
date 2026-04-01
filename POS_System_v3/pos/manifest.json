@@ -1,0 +1,22 @@
+{
+  "name": "智慧冰箱管家",
+  "short_name": "智慧冰箱",
+  "description": "管理冰箱庫存與即期食品的智慧助手",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4A90E2",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f1e6.png",
+      "sizes": "72x72",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/512x512/2744.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

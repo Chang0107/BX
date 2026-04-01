@@ -1,5 +1,6 @@
 [
   {
+<<<<<<< HEAD
     "id": 1774081673946,
     "name": "浪味仙",
     "quantity": 0,
@@ -27,6 +28,35 @@
     "lastUpdated": 1774081911736,
     "isDetecting": false,
     "lastDetectedQty": 1,
+=======
+    "id": 1775024259436,
+    "name": "tea",
+    "quantity": 0,
+    "source": "A端偵測",
+    "lastUpdated": 1775024281114,
+    "isDetecting": false,
+    "lastDetectedQty": 0,
+    "expirationDate": ""
+  },
+  {
+    "id": 1775024264451,
+    "name": "banana",
+    "quantity": 0,
+    "source": "A端偵測",
+    "lastUpdated": 1775024280598,
+    "isDetecting": false,
+    "lastDetectedQty": 0,
+    "expirationDate": ""
+  },
+  {
+    "id": 1775024265582,
+    "name": "water",
+    "quantity": 0,
+    "source": "A端偵測",
+    "lastUpdated": 1775024280111,
+    "isDetecting": false,
+    "lastDetectedQty": 0,
+>>>>>>> e1611d81577317931540d7da1ade6c6877876c34
     "expirationDate": ""
   }
 ]
