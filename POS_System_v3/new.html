@@ -44,6 +44,7 @@
 <body>
     <div id="root"></div>
 
+    <script src="/recipe-client.js"></script>
     <script type="text/babel">
         // Helper component for Lucide icons in UMD mode
         const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
@@ -115,7 +116,9 @@
         };
 
         const mapInventoryData = (serverData) => {
+            if (!Array.isArray(serverData)) return [];
             return serverData.map(item => {
+                const nameStr = item.name != null ? String(item.name) : '未命名';
                 let days = 7; 
                 if (item.expirationDate) {
                     const exp = new Date(item.expirationDate);
@@ -129,13 +132,14 @@
                 if (days <= 3) status = 'danger';
                 else if (days <= 7) status = 'warning';
 
-                const icon = ICON_MAP[item.name.toLowerCase()] || ICON_MAP['default'];
+                const icon = ICON_MAP[nameStr.toLowerCase()] || ICON_MAP['default'];
+                const qty = item.quantity !== undefined && item.quantity !== null ? Number(item.quantity) : 0;
 
                 return {
                     id: item.id,
-                    name: item.name,
-                    displayName: `${item.name} (${item.quantity})`,
-                    quantity: item.quantity,
+                    name: nameStr,
+                    displayName: `${nameStr} (${qty})`,
+                    quantity: qty,
                     days: days > 0 ? days : 0,
                     status,
                     icon,
@@ -144,15 +148,29 @@
             });
         };
 
+        /** 與 pos/app.js 一致：用 http(s) 同源；file:// 時改連本機 3000（需已啟動 server.js） */
+        function getServerSocketUrl() {
+            if (typeof window === 'undefined') return 'http://localhost:3000';
+            if (window.location.protocol === 'file:') {
+                console.warn('[Kitchen OS] 請以 http://localhost:3000/new.html 開啟，Socket 才能連到 server.js');
+                return 'http://localhost:3000';
+            }
+            return window.location.origin;
+        }
+
         // --- Sub-Components ---
 
         // 1. 頂部狀態列
-        const StatusBar = () => (
+        const StatusBar = ({ serverConnected, detectorConnected, historyCount }) => (
             <div className="flex justify-between items-center px-8 py-5 text-white/80 shrink-0 z-30 relative">
                 <div className="flex items-center space-x-6">
                     <span className="text-2xl font-light tracking-widest font-mono text-white drop-shadow-md">
                         {new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
                     </span>
+                    <div className="flex items-center gap-3 text-[11px] font-medium text-white/70">
+                        <span className={serverConnected ? 'text-emerald-400' : 'text-red-400'} title="伺服器 Socket">● 伺服器</span>
+                        <span className={detectorConnected ? 'text-emerald-400' : 'text-white/30'} title="AI 偵測端 PC.py">● 鏡頭</span>
+                    </div>
                     <div className="flex space-x-2 text-sm bg-white/10 backdrop-blur-md border border-white/10 px-3 py-1.5 rounded-full text-white/90">
                         <span>24°C</span>
                         <span className="opacity-30">|</span>
@@ -468,7 +486,7 @@
             return (
                 <div className="h-full pl-32 pr-8 pt-6 pb-6 flex flex-col animate-fade-in">
                 <div className="flex justify-between items-center mb-6 shrink-0">
-                    <h2 className="text-4xl text-white font-light">食材透視</h2>
+                    <h2 className="text-4xl text-white font-light">食材</h2>
                     <div className="flex gap-3">
                         <span className="text-xs text-red-300 bg-red-500/10 px-3 py-1.5 rounded-full border border-red-500/20 font-medium flex items-center gap-2">
                         <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></div> {expiringCount} 項即將過期
@@ -530,26 +548,13 @@
                         </div>
                         ))}
 
-                            <div className="flex items-center justify-between mt-auto pt-2">
-                                <div className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${ item.status==='danger' ? 'bg-red-500/20 text-red-300 border border-red-500/20' : item.status==='warning' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/20' : 'bg-green-500/20 text-green-400 border border-green-500/20' }`}>
-                                <Clock size={10} /> {item.days} 天
-                                </div>
-
-                                {item.status === 'danger' && (
-                                <button onClick={toCooking} className="w-7 h-7 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90" title="找食譜">
-                                <ChefHat size={14} />
-                                </button>
-                                )}
-                            </div>
-                        </div>
-                        ))}
-
                         <button onClick={addItem} className="border border-dashed border-white/10 rounded-2xl p-4 flex flex-col items-center justify-center text-white/20 hover:text-white/60 hover:border-white/30 hover:bg-white/5 transition-all h-36 active:scale-95 group">
                             <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
                                 <Plus size={20} />
                             </div>
                             <span className="text-xs font-medium">手動輸入</span>
                         </button>
+                        
                     </div>
                 </div>
                 </div>
@@ -557,17 +562,96 @@
         };
 
         // 6. 烹飪模式 (Chef Mode)
-        const CookingView = () => {
+        const CookingView = ({ inventory }) => {
             const [step, setStep] = useState(0);
-            const [listening, setListening] = useState(false);
+            const [recipeData, setRecipeData] = useState(window.RecipeFeature?.FALLBACK_RECIPE || { title: "食譜建議", duration: "-", difficulty: "-", steps: [] });
+            const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
+            const [recipeError, setRecipeError] = useState("");
+            const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false);
+            const [selectedIngredients, setSelectedIngredients] = useState([]);
+            /** 上次成功請求 AI 的食材指紋（名稱+數量），避免重複按確認浪費額度 */
+            const lastRecipeRequestKeyRef = useRef(null);
 
-            const recipeSteps = [
-                { text: "鮭魚抹上海鹽與黑胡椒，靜置 10 分鐘。", tip: "提前回溫口感更佳。", img: "https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" },
-                { text: "平底鍋中火熱油，至出現油紋。", tip: "約 150 度。", img: "https://images.unsplash.com/photo-1590794056226-79ef3a8147e1?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" },
-                { text: "魚皮朝下，大火煎 3 分鐘至金黃。", tip: "勿急翻面。", img: "https://images.unsplash.com/photo-1467003909585-2f8a7270028d?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" },
-                { text: "翻面轉中小火，續煎 2 分鐘。", tip: "輕壓有彈性即熟。", img: "https://images.unsplash.com/photo-1580476262716-6b3693166861?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" },
-                { text: "起鍋擺盤，擠上檸檬汁。", tip: "趁熱享用！", img: "https://images.unsplash.com/photo-1485921325833-c519f76c4927?ixlib=rb-4.0.3&auto=format&fit=crop&w=1280&q=80" }
-            ];
+            const availableIngredients = React.useMemo(() => {
+                if (!window.RecipeFeature || typeof window.RecipeFeature.inventoryToIngredients !== "function") return [];
+                const list = window.RecipeFeature.inventoryToIngredients(inventory);
+                const merged = new Map();
+                list.forEach((ing) => {
+                    const key = String(ing.name || "").trim();
+                    if (!key) return;
+                    merged.set(key, (merged.get(key) || 0) + (Number(ing.quantity) || 0));
+                });
+                return Array.from(merged.entries()).map(([name, quantity]) => ({ name, quantity }));
+            }, [inventory]);
+
+            const buildIngredientRequestKey = (selectedNames) => {
+                if (!Array.isArray(selectedNames) || selectedNames.length === 0) return '';
+                const qtyByName = new Map(
+                    availableIngredients.map((i) => [String(i.name || '').trim(), Number(i.quantity) || 0])
+                );
+                return [...new Set(selectedNames.map((n) => String(n || '').trim()).filter(Boolean))]
+                    .sort()
+                    .map((name) => `${name}:${qtyByName.get(name) ?? 0}`)
+                    .join('|');
+            };
+
+            const recipeSteps = Array.isArray(recipeData?.steps) && recipeData.steps.length > 0
+                ? recipeData.steps
+                : (window.RecipeFeature?.FALLBACK_RECIPE?.steps || []);
+            const safeStep = recipeSteps[step] || recipeSteps[0] || { text: "暫無步驟資料", tip: "請稍後重試", img: "" };
+
+            useEffect(() => {
+                const names = availableIngredients.map((i) => i.name);
+                setSelectedIngredients((prev) => {
+                    const filtered = prev.filter((name) => names.includes(name));
+                    return filtered.length > 0 ? filtered : names;
+                });
+            }, [availableIngredients]);
+
+            const toggleIngredient = (name) => {
+                setSelectedIngredients((prev) => (
+                    prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+                ));
+            };
+
+            const loadRecipe = async (ingredientNames = selectedIngredients, options = {}) => {
+                const { force = false } = options || {};
+                if (!window.RecipeFeature || typeof window.RecipeFeature.getRecipe !== "function") {
+                    setRecipeError("食譜模組未載入，已使用預設食譜。");
+                    setRecipeData(window.RecipeFeature?.FALLBACK_RECIPE || recipeData);
+                    return;
+                }
+                if (!Array.isArray(ingredientNames) || ingredientNames.length === 0) {
+                    setRecipeError("請至少選擇一項食材再生成食譜。");
+                    return;
+                }
+                const requestKey = buildIngredientRequestKey(ingredientNames);
+                if (!force && requestKey && lastRecipeRequestKeyRef.current === requestKey) {
+                    setRecipeError("食材組合與上次相同，已略過請求以避免重複呼叫 API。");
+                    return;
+                }
+                setIsLoadingRecipe(true);
+                setRecipeError("");
+                try {
+                    const next = await window.RecipeFeature.getRecipe(inventory, ingredientNames);
+                    setRecipeData(next || window.RecipeFeature.FALLBACK_RECIPE);
+                    setStep(0);
+                    lastRecipeRequestKeyRef.current = requestKey;
+                } catch (e) {
+                    setRecipeError("取得食譜失敗，已改用預設食譜。");
+                    setRecipeData(window.RecipeFeature.FALLBACK_RECIPE);
+                    setStep(0);
+                } finally {
+                    setIsLoadingRecipe(false);
+                }
+            };
+
+            // 注意：改為「使用者按確認」才呼叫 API，避免勾選過程反覆送出請求
+
+            const handleConfirmIngredients = async () => {
+                await loadRecipe(selectedIngredients, { force: false });
+                setIsIngredientModalOpen(false);
+            };
 
             return (
                 <div className="h-full pl-32 pr-8 pt-6 flex flex-col pb-6 animate-fade-in">
@@ -577,20 +661,25 @@
                                 <ChefHat size={24} className="text-white" />
                             </div>
                             <div>
-                                <h2 className="text-2xl text-white font-bold tracking-wide">香煎鮭魚</h2>
+                                <h2 className="text-2xl text-white font-bold tracking-wide">{recipeData?.title || "AI 食譜建議"}</h2>
                                 <p className="text-white/50 flex items-center gap-2 text-xs">
-                                    <Clock size={12} /> 25 分鐘 • 簡易
+                                    <Clock size={12} /> {recipeData?.duration || "-"} • {recipeData?.difficulty || "-"} • 已選 {selectedIngredients.length} 項食材
                                 </p>
                             </div>
                         </div>
-                        <button onClick={() => setListening(!listening)} className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 transition-all active:scale-95 ${listening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-700 hover:bg-slate-600 text-white border border-white/10'}`}>
-                            <Mic size={16} /> {listening ? '聆聽中...' : '語音控制'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={() => loadRecipe(selectedIngredients, { force: true })} disabled={isLoadingRecipe || selectedIngredients.length === 0} className="px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 transition-all active:scale-95 bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
+                                <RefreshCw size={16} className={isLoadingRecipe ? "animate-spin" : ""} /> {isLoadingRecipe ? "生成中..." : "重新生成"}
+                            </button>
+                            <button onClick={() => setIsIngredientModalOpen(true)} className="px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 transition-all active:scale-95 bg-slate-700 hover:bg-slate-600 text-white border border-white/10">
+                                <ChefHat size={16} /> 食材選擇
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex-1 flex gap-6 min-h-0">
                         <div className="w-[45%] h-full bg-black rounded-3xl border border-white/10 relative overflow-hidden group shadow-2xl">
-                            <img src={recipeSteps[step].img} className="w-full h-full object-cover opacity-80 transition-all duration-700 group-hover:scale-105" alt="Cooking" />
+                            <img src={safeStep.img} className="w-full h-full object-cover opacity-80 transition-all duration-700 group-hover:scale-105" alt="Cooking" />
                             <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-transparent transition-colors pointer-events-none">
                                 <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 shadow-xl">
                                     <Play size={28} className="text-white ml-1 fill-current" />
@@ -611,13 +700,16 @@
                                 <div className="inline-flex items-center gap-2 bg-blue-600/20 text-blue-300 px-3 py-1 rounded-full font-bold text-xs mb-4 border border-blue-500/20">
                                     步驟 {step + 1} / {recipeSteps.length}
                                 </div>
+                                {recipeError && (
+                                    <p className="text-amber-300 text-xs mb-3">{recipeError}</p>
+                                )}
                                 <p className="text-3xl text-white font-bold leading-snug mb-6">
-                                    {recipeSteps[step].text}
+                                    {safeStep.text}
                                 </p>
                                 <div className="p-4 bg-yellow-500/5 border-l-2 border-yellow-500 rounded-r-xl">
                                     <p className="text-yellow-100/80 text-sm font-medium flex gap-2">
                                         <span className="font-bold text-yellow-500 shrink-0">💡 提示：</span>
-                                        {recipeSteps[step].tip}
+                                        {safeStep.tip}
                                     </p>
                                 </div>
                             </div>
@@ -632,6 +724,44 @@
                             </div>
                         </div>
                     </div>
+
+                    {isIngredientModalOpen && (
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-[80] flex items-center justify-center">
+                            <div className="w-[560px] max-h-[70vh] bg-slate-900 border border-white/10 rounded-2xl shadow-2xl p-5 flex flex-col">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-white text-lg font-bold">選擇要查詢的食材</h3>
+                                    <button onClick={() => setIsIngredientModalOpen(false)} className="text-white/50 hover:text-white">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                                <div className="text-white/50 text-xs mb-3">已選擇 {selectedIngredients.length} 項</div>
+                                <div className="flex-1 overflow-y-auto pr-1 space-y-2 no-scrollbar">
+                                    {availableIngredients.length === 0 && (
+                                        <p className="text-white/40 text-sm">目前沒有可用食材，請先到食材頁新增或同步庫存。</p>
+                                    )}
+                                    {availableIngredients.map((ing) => {
+                                        const checked = selectedIngredients.includes(ing.name);
+                                        return (
+                                            <button
+                                                key={ing.name}
+                                                onClick={() => toggleIngredient(ing.name)}
+                                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border transition-all ${checked ? "bg-blue-600/20 border-blue-400/40 text-white" : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"}`}
+                                            >
+                                                <span>{ing.name} ({ing.quantity})</span>
+                                                {checked && <Check size={16} />}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="flex justify-end gap-2 mt-4">
+                                    <button onClick={() => setIsIngredientModalOpen(false)} className="px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20">取消</button>
+                                    <button onClick={handleConfirmIngredients} disabled={isLoadingRecipe || selectedIngredients.length === 0} className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50">
+                                        {isLoadingRecipe ? "生成中..." : "確認並生成食譜"}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -819,34 +949,74 @@
             const [isAmbient, setIsAmbient] = useState(true);
             const [currentView, setCurrentView] = useState('dashboard');
             const [inventory, setInventory] = useState([]);
+            const [historyLog, setHistoryLog] = useState([]);
+            const [serverConnected, setServerConnected] = useState(false);
+            const [detectorConnected, setDetectorConnected] = useState(false);
 
             const socketRef = useRef(null);
 
             useEffect(() => {
-                // Initialize socket connection
-                const socket = io(); 
+                const serverUrl = getServerSocketUrl();
+                const socket = io(serverUrl, {
+                    transports: ['websocket', 'polling'],
+                    reconnection: true,
+                    reconnectionAttempts: 15,
+                    reconnectionDelay: 1000
+                });
                 socketRef.current = socket;
 
+                const applyInventory = (raw) => setInventory(mapInventoryData(raw));
+
+                socket.on('connect', () => {
+                    setServerConnected(true);
+                    socket.emit('request_inventory_sync');
+                });
+
+                socket.on('disconnect', () => {
+                    setServerConnected(false);
+                    setDetectorConnected(false);
+                });
+
+                socket.on('connect_error', (err) => {
+                    console.warn('[Socket] 連線失敗（請確認 server.js 已啟動且網址正確）:', serverUrl, err?.message || err);
+                });
+
                 socket.on('init_data', (data) => {
-                    if (data && data.inventory) {
-                        setInventory(mapInventoryData(data.inventory));
-                    }
+                    if (!data) return;
+                    if (Array.isArray(data.inventory)) applyInventory(data.inventory);
+                    if (Array.isArray(data.history)) setHistoryLog(data.history);
+                    if (typeof data.isDetectorConnected === 'boolean') setDetectorConnected(data.isDetectorConnected);
                 });
 
                 socket.on('update_data', (data) => {
-                    if (data) {
-                        setInventory(mapInventoryData(data));
-                    }
+                    if (Array.isArray(data)) applyInventory(data);
                 });
 
-                return () => socket.disconnect();
+                socket.on('update_history', (h) => {
+                    if (Array.isArray(h)) setHistoryLog(h);
+                });
+
+                socket.on('detector_status', (online) => {
+                    setDetectorConnected(!!online);
+                });
+
+                return () => {
+                    socket.removeAllListeners();
+                    socket.disconnect();
+                    socketRef.current = null;
+                };
             }, []);
 
+            useEffect(() => {
+                if (currentView !== 'inventory') return;
+                const s = socketRef.current;
+                if (s && s.connected) s.emit('request_inventory_sync');
+            }, [currentView]);
+
             const handleUpdate = (newRawInventory) => {
-                if (socketRef.current) {
+                if (socketRef.current && socketRef.current.connected) {
                     socketRef.current.emit('manual_update', newRawInventory);
                 } else {
-                    // Fallback for no connection
                     setInventory(mapInventoryData(newRawInventory));
                 }
             };
@@ -858,13 +1028,13 @@
                             {isAmbient && <AmbientScreen onWake={() => setIsAmbient(false)} />}
                             <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-600/5 blur-[120px] pointer-events-none rounded-full translate-x-[-20%] translate-y-[-20%]"></div>
                             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-600/5 blur-[120px] pointer-events-none rounded-full translate-x-[20%] translate-y-[20%]"></div>
-                            <StatusBar />
+                            <StatusBar serverConnected={serverConnected} detectorConnected={detectorConnected} historyCount={historyLog.length} />
                             <div className="flex-1 relative z-10 overflow-hidden flex">
                                 <NavBar current={currentView} setView={setCurrentView} />
                                 <div className="flex-1 h-full overflow-hidden relative">
                                     {currentView === 'dashboard' && <Dashboard changeView={setCurrentView} inventory={inventory} />}
                                     {currentView === 'inventory' && <InventoryView toCooking={() => setCurrentView('cooking')} inventory={inventory} onUpdate={handleUpdate} />}
-                                    {currentView === 'cooking' && <CookingView />}
+                                    {currentView === 'cooking' && <CookingView inventory={inventory} />}
                                     {currentView === 'family' && <FamilyBoard />}
                                     {currentView === 'shopping' && <ShoppingListView />}
                                 </div>

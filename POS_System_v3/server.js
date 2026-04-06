@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const fs = require('fs');
 const path = require('path');
 const ip = require('ip');
+const { createRecipeRouter } = require('./recipe-feature');
 
 const app = express();
 const server = http.createServer(app);
@@ -15,6 +16,7 @@ const io = new Server(server, {
 });
 
 app.use(express.static(__dirname));
+app.use(express.json());
 
 const DATA_FILE = path.join(__dirname, 'inventory.json');
 const HISTORY_FILE = path.join(__dirname, 'history.json'); // [新增] 歷史紀錄檔案
@@ -71,6 +73,11 @@ function addHistory(action, itemName, quantity, details = '') {
     saveHistory();
     io.emit('update_history', history);
 }
+app.use('/api/recipes', createRecipeRouter({
+    onRecipeGenerated: (ingredientCount) => {
+        addHistory('RECIPE', 'AI 食譜', ingredientCount, `使用 ${ingredientCount} 項食材生成`);
+    }
+}));
 
 io.on('connection', (socket) => {
     // 發送初始狀態
@@ -78,6 +85,15 @@ io.on('connection', (socket) => {
         inventory, 
         history, // [新增] 發送歷史紀錄
         isDetectorConnected 
+    });
+
+    // 與 pos/app.js、new.html 同步：客端可主動要求重送目前 inventory / history
+    socket.on('request_inventory_sync', () => {
+        socket.emit('init_data', {
+            inventory,
+            history,
+            isDetectorConnected
+        });
     });
 
     // --- [新增] 識別偵測端 ---
