@@ -1,0 +1,10 @@
+# 備忘錄
+
+### YOLO
+
+1. 區域計數 (Object Counting)
+2. 物體追蹤 (Object Tracking)
+3. 實例分割 (Instance Segmentation)
+4. 影像分類 (Image Classification)
+5. 旋轉框偵測 (Oriented Bounding Boxes, OBB)
+2. 物體追蹤 (Object Tracking)
