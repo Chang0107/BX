@@ -3,8 +3,23 @@
 ### YOLO
 
 1. 區域計數 (Object Counting)
+[  |  ] ok
+
 2. 物體追蹤 (Object Tracking)
+原本的爛東西
+
 3. 實例分割 (Instance Segmentation)
+ok
+
 4. 影像分類 (Image Classification)
+垃圾
+
 5. 旋轉框偵測 (Oriented Bounding Boxes, OBB)
+有點難用 
+
 2. 物體追蹤 (Object Tracking)
+//---------------------------
+
+冰箱專題：
+虛擬圍欄 Virtual Fenc
+區域計數
