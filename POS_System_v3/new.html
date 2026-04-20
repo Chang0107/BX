@@ -18,10 +18,14 @@
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
+        html, body, #root {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+        }
         body {
             font-family: 'Inter', sans-serif;
             background-color: #171717;
-            margin: 0;
             overflow: hidden;
         }
 
@@ -59,7 +63,8 @@
                 }
             }, [name]);
 
-            if (!iconContent) return <div style={{width: size, height: size}} className={className} />;
+            // 需維持 inline 元素，避免在 <p> 內渲染成 <div> 造成 DOM nesting 警告
+            if (!iconContent) return <span style={{width: size, height: size, display: 'inline-block'}} className={className} />;
 
             return (
                 <svg
@@ -115,17 +120,52 @@
             'default': '📦'
         };
 
+        const DEFAULT_SHELF_LIFE_DAYS = 7;
+        const DAY_MS = 86400000;
+        const toHourIso = (value) => {
+            const base = typeof value === 'number' ? value : Date.parse(String(value || ''));
+            if (!Number.isFinite(base) || base <= 0) return '';
+            const d = new Date(base);
+            d.setUTCMinutes(0, 0, 0);
+            return d.toISOString();
+        };
+        const addDaysHourIso = (isoText, days) => {
+            const baseMs = Date.parse(String(isoText || ''));
+            if (!Number.isFinite(baseMs) || baseMs <= 0) return '';
+            const d = new Date(baseMs + Number(days || 0) * DAY_MS);
+            d.setUTCMinutes(0, 0, 0);
+            return d.toISOString();
+        };
+
         const mapInventoryData = (serverData) => {
             if (!Array.isArray(serverData)) return [];
             return serverData.map(item => {
                 const nameStr = item.name != null ? String(item.name) : '未命名';
-                let days = 7; 
-                if (item.expirationDate) {
+                /** 有效期限：優先讀 expirationDate；否則以入庫日 importedAt（或舊資料用 id）+ 建議保存天數 */
+                let effectiveExpMs = null;
+                if (item.expirationDate && String(item.expirationDate).trim()) {
                     const exp = new Date(item.expirationDate);
-                    const now = new Date();
-                    const diffTime = exp.getTime() - now.getTime();
-                    days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    if (isNaN(days)) days = 7;
+                    if (!isNaN(exp.getTime())) effectiveExpMs = exp.getTime();
+                }
+                if (effectiveExpMs == null) {
+                    const importedAtMs = item.importedAt != null
+                        ? (typeof item.importedAt === 'number'
+                            ? item.importedAt
+                            : Date.parse(String(item.importedAt)))
+                        : NaN;
+                    const base = Number.isFinite(importedAtMs) ? importedAtMs : Number(item.id);
+                    if (Number.isFinite(base) && base > 0) {
+                        effectiveExpMs = base + DEFAULT_SHELF_LIFE_DAYS * DAY_MS;
+                    }
+                }
+
+                let days = 8;
+                let remainingMs = null;
+                if (effectiveExpMs != null) {
+                    const diffTime = effectiveExpMs - Date.now();
+                    remainingMs = Math.max(0, diffTime);
+                    days = Math.ceil(diffTime / DAY_MS);
+                    if (isNaN(days)) days = 8;
                 }
 
                 let status = 'good';
@@ -135,12 +175,18 @@
                 const icon = ICON_MAP[nameStr.toLowerCase()] || ICON_MAP['default'];
                 const qty = item.quantity !== undefined && item.quantity !== null ? Number(item.quantity) : 0;
 
+                const totalHours = remainingMs == null ? null : Math.floor(remainingMs / (1000 * 60 * 60));
+                const remainingDays = totalHours == null ? null : Math.floor(totalHours / 24);
+                const remainingHours = totalHours == null ? null : totalHours % 24;
+                const remainingText = totalHours == null ? '無資料' : `${remainingDays}天${remainingHours}小時`;
+
                 return {
                     id: item.id,
                     name: nameStr,
                     displayName: `${nameStr} (${qty})`,
                     quantity: qty,
                     days: days > 0 ? days : 0,
+                    remainingText,
                     status,
                     icon,
                     raw: item // Keep reference to original data
@@ -466,6 +512,8 @@
 
             const addItem = () => {
                 const newId = Date.now();
+                const importedAt = toHourIso(newId);
+                const expirationDate = addDaysHourIso(importedAt, DEFAULT_SHELF_LIFE_DAYS);
                 const newItem = { 
                     id: newId, 
                     name: '新食材', 
@@ -474,7 +522,8 @@
                     lastUpdated: newId, 
                     isDetecting: false, 
                     lastDetectedQty: 1, 
-                    expirationDate: '' 
+                    importedAt,
+                    expirationDate
                 };
                 onUpdate([...inventory.map(i => i.raw), newItem]);
             };
@@ -516,8 +565,8 @@
                                             onChange={(e) => setEditQty(e.target.value)}
                                             className="bg-slate-700 text-white text-xs p-1 rounded border border-white/20 w-16"
                                         />
-                                        <button onClick={() => saveEdit(item.id)} className="bg-green-600 text-white text-[10px] px-2 py-1 rounded">存</button>
-                                        <button onClick={cancelEdit} className="bg-slate-600 text-white text-[10px] px-2 py-1 rounded">回</button>
+                                        <button onClick={() => saveEdit(item.id)} className="bg-green-600 text-white text-[10px] px-2 py-1 rounded">保存</button>
+                                        <button onClick={cancelEdit} className="bg-slate-600 text-white text-[10px] px-2 py-1 rounded">返回</button>
                                     </div>
                                 </div>
                             ) : (
@@ -534,7 +583,7 @@
 
                                     <div className="flex items-center justify-between mt-auto pt-2">
                                         <div className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${ item.status==='danger' ? 'bg-red-500/20 text-red-300 border border-red-500/20' : item.status==='warning' ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/20' : 'bg-green-500/20 text-green-400 border border-green-500/20' }`}>
-                                        <Clock size={10} /> {item.days} 天
+                                        <Clock size={10} /> {item.remainingText}
                                         </div>
 
                                         {item.status === 'danger' && (
@@ -1022,9 +1071,9 @@
             };
 
             return (
-                <div className="flex items-center justify-center min-h-screen bg-neutral-900 p-8 font-sans select-none">
-                    <div className="relative w-[960px] h-[640px] bg-slate-900 rounded-[32px] shadow-[0_0_80px_rgba(0,0,0,0.8)] overflow-hidden border-[12px] border-slate-800 ring-1 ring-white/10">
-                        <div className="relative w-full h-full bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] overflow-hidden text-white flex flex-col">
+                <div className="h-[100dvh] min-h-0 w-full flex flex-col bg-neutral-900 font-sans select-none box-border">
+                    <div className="relative flex-1 min-h-0 w-full bg-slate-900 overflow-hidden shadow-none border-0 ring-0">
+                        <div className="relative w-full h-full min-h-0 bg-gradient-to-br from-[#0f172a] via-[#1e293b] to-[#0f172a] overflow-hidden text-white flex flex-col">
                             {isAmbient && <AmbientScreen onWake={() => setIsAmbient(false)} />}
                             <div className="absolute top-0 left-0 w-[600px] h-[600px] bg-blue-600/5 blur-[120px] pointer-events-none rounded-full translate-x-[-20%] translate-y-[-20%]"></div>
                             <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-600/5 blur-[120px] pointer-events-none rounded-full translate-x-[20%] translate-y-[20%]"></div>
@@ -1045,7 +1094,7 @@
                                 </button>
                             )}
                         </div>
-                        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none opacity-30 rounded-[20px] z-[70]"></div>
+                        <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-tr from-transparent via-white/5 to-transparent pointer-events-none opacity-30 z-[70]"></div>
                     </div>
                 </div>
             );

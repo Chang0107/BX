@@ -21,6 +21,24 @@ app.use(express.json());
 const DATA_FILE = path.join(__dirname, 'inventory.json');
 const HISTORY_FILE = path.join(__dirname, 'history.json'); // [新增] 歷史紀錄檔案
 const DUPLICATE_THRESHOLD = 3000;
+/** 建議保存天數：入庫日起算 */
+const DEFAULT_SHELF_LIFE_DAYS = 7;
+
+function toHourIso(value) {
+    const base = typeof value === 'number' ? value : Date.parse(String(value || ''));
+    if (!Number.isFinite(base) || base <= 0) return '';
+    const d = new Date(base);
+    d.setUTCMinutes(0, 0, 0);
+    return d.toISOString();
+}
+
+function shelfLifeExpirationISO(importedAtValue) {
+    const baseMs = Date.parse(String(importedAtValue || ''));
+    if (!Number.isFinite(baseMs) || baseMs <= 0) return '';
+    const exp = new Date(baseMs + DEFAULT_SHELF_LIFE_DAYS * 86400000);
+    exp.setUTCMinutes(0, 0, 0);
+    return exp.toISOString();
+}
 
 let inventory = [];
 let history = []; // [新增] 歷史紀錄陣列
@@ -157,15 +175,17 @@ io.on('connection', (socket) => {
             }
         } else {
             if (action !== 'REMOVE') {
+                const importedAt = toHourIso(now);
                 item = {
-                    id: Date.now(),
+                    id: now,
                     name: name,
                     quantity: qty,
                     source: 'A端偵測',
                     lastUpdated: now,
                     isDetecting: isAutoMode,
                     lastDetectedQty: qty,
-                    expirationDate: '' // [新增] 有效期限欄位
+                    importedAt,
+                    expirationDate: shelfLifeExpirationISO(importedAt)
                 };
                 inventory.push(item);
                 actionType = 'NEW';

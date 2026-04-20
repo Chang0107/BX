@@ -200,13 +200,22 @@
                 existing.quantity += qty;
                 existing.lastUpdated = Date.now();
             } else {
+                const t = Date.now();
+                const importedAtDate = new Date(t);
+                importedAtDate.setUTCMinutes(0, 0, 0);
+                const importedAt = importedAtDate.toISOString();
+                const exp = new Date(importedAtDate.getTime() + 7 * 86400000);
+                exp.setUTCMinutes(0, 0, 0);
                 inventory.push({
-                    id: Date.now(),
+                    id: t,
                     name: name,
                     quantity: qty,
                     source: 'B端新增',
-                    lastUpdated: Date.now(),
+                    lastUpdated: t,
                     isDetecting: false,
+                    lastDetectedQty: qty,
+                    importedAt,
+                    expirationDate: exp.toISOString(),
                     isEditing: false
                 });
             }
