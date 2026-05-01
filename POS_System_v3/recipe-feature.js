@@ -37,6 +37,32 @@ function isRateOrKeyError(message = '') {
   );
 }
 
+function isModelNotFoundError(message = '') {
+  const u = String(message).toUpperCase();
+  return (
+    u.includes('404') ||
+    u.includes('NOT FOUND') ||
+    u.includes('NOT_FOUND') ||
+    u.includes('MODEL') && u.includes('NOT')
+  );
+}
+
+function buildModelCandidates() {
+  const defaultCandidates = [
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    'gemini-flash-latest',
+    'gemini-2.5-flash-lite',
+  ];
+  const envPrimary = String(process.env.RECIPE_GEMINI_MODEL || '').trim();
+  const envList = String(process.env.RECIPE_GEMINI_MODELS || '')
+    .split(',')
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const all = [envPrimary, ...envList, ...defaultCandidates].filter(Boolean);
+  return [...new Set(all)];
+}
+
 function normalizeRecipePayload(payload) {
   const title = String(payload?.title || 'AI 食譜建議');
   const duration = String(payload?.duration || '約 30 分鐘');
@@ -46,8 +72,10 @@ function normalizeRecipePayload(payload) {
     .map((s) => {
       // 相容模型可能回傳 string[] 或 {text}[]
       const text = typeof s === 'string' ? s : s?.text;
+      const imagePromptRaw = typeof s === 'string' ? s : (s?.imagePrompt || s?.image_prompt || '');
       return {
         text: String(text || '').trim(),
+        imagePrompt: String(imagePromptRaw || text || '').trim(),
         // UI 仍使用 tip/img 欄位，後端固定給空值避免 AI 產圖需求
         tip: '',
         img: '',
@@ -81,15 +109,16 @@ async function requestRecipeFromGemini({ ingredients, model, apiKey, timeoutMs }
 
   const prompt = `你是智慧廚房助理。請只輸出 JSON，不要任何額外文字。
 根據以下食材，產出 1 道可執行的繁體中文食譜。
-只需要「菜名」與「步驟」，不要提供圖片、不要提供圖片網址、不要提供 Markdown。
+每個步驟額外提供「imagePrompt」供後續圖片生成使用，內容需簡短且適合食譜步驟畫面，不要網址。
+只輸出 JSON，不要提供 Markdown。
 食材清單: ${JSON.stringify(ingredients, null, 2)}
 
 輸出格式（嚴格遵守）:
 {
   "title": "菜名",
   "steps": [
-    { "text": "步驟1" },
-    { "text": "步驟2" }
+    { "text": "步驟1", "imagePrompt": "步驟1對應的料理畫面描述詞" },
+    { "text": "步驟2", "imagePrompt": "步驟2對應的料理畫面描述詞" }
   ]
 }`;
 
@@ -128,9 +157,68 @@ async function requestRecipeFromGemini({ ingredients, model, apiKey, timeoutMs }
   }
 }
 
+async function requestStepImageFromGemini({ prompt, model, apiKey, timeoutMs }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const finalPrompt = [
+    String(prompt || '').trim(),
+    'Top-down view, realistic food photography, no watermark.',
+    '不要卡通圖畫、不要文字。',
+  ].filter(Boolean).join('\n');
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: finalPrompt }] }],
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+          },
+        }),
+        signal: controller.signal,
+      }
+    );
+
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const errText = body?.error?.message || `${res.status} ${res.statusText}`;
+      throw new Error(errText);
+    }
+
+    const parts = Array.isArray(body?.candidates?.[0]?.content?.parts)
+      ? body.candidates[0].content.parts
+      : [];
+    const inlinePart = parts.find((p) => p?.inlineData?.data || p?.inline_data?.data);
+    const inlineData = inlinePart?.inlineData || inlinePart?.inline_data || null;
+
+    const imageUrl =
+      body?.image_url ||
+      body?.imageUrl ||
+      body?.candidates?.[0]?.image_url ||
+      body?.candidates?.[0]?.imageUrl ||
+      parts.find((p) => p?.image_url || p?.imageUrl)?.image_url ||
+      parts.find((p) => p?.image_url || p?.imageUrl)?.imageUrl ||
+      (inlineData?.data
+        ? `data:${inlineData?.mimeType || inlineData?.mime_type || 'image/png'};base64,${inlineData.data}`
+        : '');
+
+    if (!imageUrl) throw new Error('image_url_missing');
+    return String(imageUrl);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function createRecipeRouter({ onRecipeGenerated } = {}) {
   loadRecipeEnv();
-  const RECIPE_MODEL = process.env.RECIPE_GEMINI_MODEL || 'gemini-2.0-flash';
+  const RECIPE_MODELS = buildModelCandidates();
+  const RECIPE_IMAGE_MODEL = String(process.env.RECIPE_IMAGE_MODEL || 'gemini-2.5-flash-image').trim();
   const RECIPE_API_TIMEOUT_MS = Number(process.env.RECIPE_API_TIMEOUT_MS || 60000);
   const RECIPE_API_KEYS = (
     process.env.RECIPE_GEMINI_API_KEYS
@@ -161,28 +249,72 @@ function createRecipeRouter({ onRecipeGenerated } = {}) {
       if (RECIPE_API_KEYS.length === 0) {
         return res.status(500).json({ error: '未設定 RECIPE_GEMINI_API_KEY(S)' });
       }
+      if (RECIPE_MODELS.length === 0) {
+        return res.status(500).json({ error: '未設定可用的 RECIPE_GEMINI_MODEL(S)' });
+      }
 
       let lastError = 'recipe_generation_failed';
-      for (let idx = 0; idx < RECIPE_API_KEYS.length; idx++) {
-        try {
-          const recipe = await requestRecipeFromGemini({
-            ingredients,
-            model: RECIPE_MODEL,
-            apiKey: RECIPE_API_KEYS[idx],
-            timeoutMs: RECIPE_API_TIMEOUT_MS,
-          });
-          if (typeof onRecipeGenerated === 'function') {
-            onRecipeGenerated(ingredients.length);
+      for (let mIdx = 0; mIdx < RECIPE_MODELS.length; mIdx++) {
+        const model = RECIPE_MODELS[mIdx];
+        for (let idx = 0; idx < RECIPE_API_KEYS.length; idx++) {
+          try {
+            const recipe = await requestRecipeFromGemini({
+              ingredients,
+              model,
+              apiKey: RECIPE_API_KEYS[idx],
+              timeoutMs: RECIPE_API_TIMEOUT_MS,
+            });
+            if (typeof onRecipeGenerated === 'function') {
+              onRecipeGenerated(ingredients.length);
+            }
+            return res.json(recipe);
+          } catch (e) {
+            lastError = e.message || String(e);
+            const hasNextKey = idx < RECIPE_API_KEYS.length - 1;
+            // 同模型下，只在配額/速率/金鑰類錯誤時才切下一把 key
+            if (hasNextKey && isRateOrKeyError(lastError)) continue;
+            // 模型不存在（404）才切下一個模型
+            if (isModelNotFoundError(lastError)) break;
+            // 其他錯誤直接停止，避免不必要重試
+            return res.status(502).json({ error: '食譜生成失敗', details: lastError });
           }
-          return res.json(recipe);
-        } catch (e) {
-          lastError = e.message || String(e);
-          if (!isRateOrKeyError(lastError) && idx < RECIPE_API_KEYS.length - 1) continue;
-          if (idx < RECIPE_API_KEYS.length - 1) continue;
         }
       }
 
       return res.status(502).json({ error: '食譜生成失敗', details: lastError });
+    } catch (e) {
+      return res.status(500).json({ error: '伺服器錯誤', details: e.message || String(e) });
+    }
+  });
+
+  router.post(['/step-image', '/step-image/'], async (req, res) => {
+    try {
+      const imagePrompt = String(req.body?.imagePrompt || '').trim();
+      if (!imagePrompt) {
+        return res.status(400).json({ error: 'imagePrompt 不可為空' });
+      }
+      if (RECIPE_API_KEYS.length === 0) {
+        return res.status(500).json({ error: '未設定 RECIPE_GEMINI_API_KEY(S)' });
+      }
+
+      let lastError = 'step_image_generation_failed';
+      for (let idx = 0; idx < RECIPE_API_KEYS.length; idx++) {
+        try {
+          const imageUrl = await requestStepImageFromGemini({
+            prompt: imagePrompt,
+            model: RECIPE_IMAGE_MODEL,
+            apiKey: RECIPE_API_KEYS[idx],
+            timeoutMs: RECIPE_API_TIMEOUT_MS,
+          });
+          return res.json({ imageUrl });
+        } catch (e) {
+          lastError = e.message || String(e);
+          const hasNextKey = idx < RECIPE_API_KEYS.length - 1;
+          if (hasNextKey && isRateOrKeyError(lastError)) continue;
+          break;
+        }
+      }
+      return res.status(502).json({ error: '步驟圖片生成失敗', details: lastError });
     } catch (e) {
       return res.status(500).json({ error: '伺服器錯誤', details: e.message || String(e) });
     }

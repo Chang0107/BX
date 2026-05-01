@@ -1,4 +1,6 @@
 (function () {
+  let quotaBlockedUntilMs = 0;
+
   const FALLBACK_RECIPE = {
     title: "香煎鮭魚",
     duration: "25 分鐘",
@@ -32,6 +34,44 @@
     ],
   };
 
+  function normalizeRecipeSteps(recipe) {
+    const stepsRaw = Array.isArray(recipe?.steps) ? recipe.steps : [];
+    const steps = stepsRaw
+      .map((s) => {
+        const text = String(s?.text || s || "").trim();
+        if (!text) return null;
+        const imagePrompt = String(s?.imagePrompt || text).trim();
+        return {
+          ...s,
+          text,
+          imagePrompt,
+        };
+      })
+      .filter(Boolean);
+    return {
+      ...recipe,
+      steps,
+    };
+  }
+
+  async function fetchStepImage(imagePrompt) {
+    const prompt = String(imagePrompt || "").trim();
+    if (!prompt) throw new Error("image_prompt_required");
+    const response = await fetch("/api/recipes/step-image/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imagePrompt: prompt }),
+    });
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      throw new Error(errBody?.details || errBody?.error || `step_image_api_error_${response.status}`);
+    }
+    const data = await response.json().catch(() => ({}));
+    const imageUrl = String(data?.imageUrl || "").trim();
+    if (!imageUrl) throw new Error("step_image_url_missing");
+    return imageUrl;
+  }
+
   function inventoryToIngredients(inventory) {
     if (!Array.isArray(inventory)) return [];
     return inventory
@@ -50,6 +90,27 @@
     if (!Array.isArray(selectedNames) || selectedNames.length === 0) return ingredients;
     const selectedSet = new Set(selectedNames.map((n) => String(n || "").trim()).filter(Boolean));
     return ingredients.filter((ing) => selectedSet.has(String(ing.name || "").trim()));
+  }
+
+  function isQuotaOrRateError(message) {
+    const u = String(message || "").toUpperCase();
+    return (
+      u.includes("429") ||
+      u.includes("RESOURCE_EXHAUSTED") ||
+      u.includes("RATE LIMIT") ||
+      u.includes("RATE_LIMIT") ||
+      u.includes("QUOTA")
+    );
+  }
+
+  function parseRetryAfterMs(message) {
+    const raw = String(message || "");
+    const retryMatch = raw.match(/PLEASE RETRY IN\s+([\d.]+)S/i);
+    if (retryMatch && retryMatch[1]) {
+      const seconds = Number(retryMatch[1]);
+      if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds * 1000);
+    }
+    return 15000;
   }
 
   async function fetchRecipeFromApi(inventory, selectedNames) {
@@ -75,15 +136,22 @@
     if (!data || !Array.isArray(data.steps) || data.steps.length === 0) {
       throw new Error("invalid_recipe_payload");
     }
-    return data;
+    return normalizeRecipeSteps(data);
   }
 
   async function getRecipe(inventory, selectedNames) {
+    if (Date.now() < quotaBlockedUntilMs) {
+      return normalizeRecipeSteps(FALLBACK_RECIPE);
+    }
     try {
       return await fetchRecipeFromApi(inventory, selectedNames);
     } catch (err) {
-      console.warn("[RecipeFeature] fallback recipe:", err && err.message ? err.message : err);
-      return FALLBACK_RECIPE;
+      const message = err && err.message ? err.message : String(err);
+      if (isQuotaOrRateError(message)) {
+        quotaBlockedUntilMs = Date.now() + parseRetryAfterMs(message);
+      }
+      console.warn("[RecipeFeature] fallback recipe:", message);
+      return normalizeRecipeSteps(FALLBACK_RECIPE);
     }
   }
 
@@ -91,6 +159,7 @@
     getRecipe,
     inventoryToIngredients,
     filterIngredientsByNames,
+    fetchStepImage,
     FALLBACK_RECIPE,
   };
 })();

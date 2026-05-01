@@ -618,6 +618,8 @@
             const [recipeError, setRecipeError] = useState("");
             const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false);
             const [selectedIngredients, setSelectedIngredients] = useState([]);
+            const [stepImageCache, setStepImageCache] = useState({});
+            const stepImageRequestedRef = useRef(new Set());
             /** 上次成功請求 AI 的食材指紋（名稱+數量），避免重複按確認浪費額度 */
             const lastRecipeRequestKeyRef = useRef(null);
 
@@ -647,7 +649,30 @@
             const recipeSteps = Array.isArray(recipeData?.steps) && recipeData.steps.length > 0
                 ? recipeData.steps
                 : (window.RecipeFeature?.FALLBACK_RECIPE?.steps || []);
-            const safeStep = recipeSteps[step] || recipeSteps[0] || { text: "暫無步驟資料", tip: "請稍後重試", img: "" };
+            const safeStep = recipeSteps[step] || recipeSteps[0] || { text: "暫無步驟資料", tip: "請稍後重試", img: "", imagePrompt: "" };
+            const stepImageKey = `${String(recipeData?.title || '').trim()}::${step}::${String(safeStep?.imagePrompt || safeStep?.text || '').trim()}`;
+            const resolvedStepImage = safeStep?.img || stepImageCache[stepImageKey] || '';
+            const getStepImageKey = (stepData, stepIndex) => (
+                `${String(recipeData?.title || '').trim()}::${stepIndex}::${String(stepData?.imagePrompt || stepData?.text || '').trim()}`
+            );
+            const ensureStepImage = async (stepData, stepIndex) => {
+                if (!stepData || stepData.img) return;
+                if (!window.RecipeFeature || typeof window.RecipeFeature.fetchStepImage !== "function") return;
+                const key = getStepImageKey(stepData, stepIndex);
+                if (!key || stepImageCache[key] || stepImageRequestedRef.current.has(key)) return;
+                const imagePrompt = String(stepData.imagePrompt || stepData.text || '').trim();
+                if (!imagePrompt) return;
+                stepImageRequestedRef.current.add(key);
+                try {
+                    const imageUrl = await window.RecipeFeature.fetchStepImage(imagePrompt);
+                    if (imageUrl) {
+                        setStepImageCache((prev) => ({ ...prev, [key]: imageUrl }));
+                    }
+                } catch (e) {
+                    console.warn('[CookingView] step image generation failed:', e && e.message ? e.message : e);
+                    // 失敗時維持「圖片載入中...」，避免反覆重試耗額度
+                }
+            };
 
             useEffect(() => {
                 const names = availableIngredients.map((i) => i.name);
@@ -656,6 +681,13 @@
                     return filtered.length > 0 ? filtered : names;
                 });
             }, [availableIngredients]);
+
+            useEffect(() => {
+                const currentStep = recipeSteps[step];
+                if (currentStep) ensureStepImage(currentStep, step);
+                const nextStep = recipeSteps[step + 1];
+                if (nextStep) ensureStepImage(nextStep, step + 1);
+            }, [step, recipeSteps]);
 
             const toggleIngredient = (name) => {
                 setSelectedIngredients((prev) => (
@@ -684,11 +716,15 @@
                 try {
                     const next = await window.RecipeFeature.getRecipe(inventory, ingredientNames);
                     setRecipeData(next || window.RecipeFeature.FALLBACK_RECIPE);
+                    setStepImageCache({});
+                    stepImageRequestedRef.current = new Set();
                     setStep(0);
                     lastRecipeRequestKeyRef.current = requestKey;
                 } catch (e) {
                     setRecipeError("取得食譜失敗，已改用預設食譜。");
                     setRecipeData(window.RecipeFeature.FALLBACK_RECIPE);
+                    setStepImageCache({});
+                    stepImageRequestedRef.current = new Set();
                     setStep(0);
                 } finally {
                     setIsLoadingRecipe(false);
@@ -728,12 +764,13 @@
 
                     <div className="flex-1 flex gap-6 min-h-0">
                         <div className="w-[45%] h-full bg-black rounded-3xl border border-white/10 relative overflow-hidden group shadow-2xl">
-                            <img src={safeStep.img} className="w-full h-full object-cover opacity-80 transition-all duration-700 group-hover:scale-105" alt="Cooking" />
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-transparent transition-colors pointer-events-none">
-                                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 shadow-xl">
-                                    <Play size={28} className="text-white ml-1 fill-current" />
+                            {resolvedStepImage ? (
+                                <img src={resolvedStepImage} className="w-full h-full object-cover opacity-80 transition-all duration-700 group-hover:scale-105" alt="Cooking" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-slate-900/80 text-white/50 text-sm">
+                                    圖片載入中...
                                 </div>
-                            </div>
+                            )}
 
                             <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10">
                                 <div className="flex gap-1.5 h-1 w-full">
