@@ -610,16 +610,16 @@
             );
         };
 
+        const EMPTY_RECIPE = { title: "", duration: "", difficulty: "", steps: [] };
+
         // 6. 烹飪模式 (Chef Mode)
         const CookingView = ({ inventory }) => {
             const [step, setStep] = useState(0);
-            const [recipeData, setRecipeData] = useState(window.RecipeFeature?.FALLBACK_RECIPE || { title: "食譜建議", duration: "-", difficulty: "-", steps: [] });
+            const [recipeData, setRecipeData] = useState(window.RecipeFeature?.EMPTY_RECIPE || EMPTY_RECIPE);
             const [isLoadingRecipe, setIsLoadingRecipe] = useState(false);
             const [recipeError, setRecipeError] = useState("");
             const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false);
             const [selectedIngredients, setSelectedIngredients] = useState([]);
-            const [stepImageCache, setStepImageCache] = useState({});
-            const stepImageRequestedRef = useRef(new Set());
             /** 上次成功請求 AI 的食材指紋（名稱+數量），避免重複按確認浪費額度 */
             const lastRecipeRequestKeyRef = useRef(null);
 
@@ -646,33 +646,9 @@
                     .join('|');
             };
 
-            const recipeSteps = Array.isArray(recipeData?.steps) && recipeData.steps.length > 0
-                ? recipeData.steps
-                : (window.RecipeFeature?.FALLBACK_RECIPE?.steps || []);
-            const safeStep = recipeSteps[step] || recipeSteps[0] || { text: "暫無步驟資料", tip: "請稍後重試", img: "", imagePrompt: "" };
-            const stepImageKey = `${String(recipeData?.title || '').trim()}::${step}::${String(safeStep?.imagePrompt || safeStep?.text || '').trim()}`;
-            const resolvedStepImage = safeStep?.img || stepImageCache[stepImageKey] || '';
-            const getStepImageKey = (stepData, stepIndex) => (
-                `${String(recipeData?.title || '').trim()}::${stepIndex}::${String(stepData?.imagePrompt || stepData?.text || '').trim()}`
-            );
-            const ensureStepImage = async (stepData, stepIndex) => {
-                if (!stepData || stepData.img) return;
-                if (!window.RecipeFeature || typeof window.RecipeFeature.fetchStepImage !== "function") return;
-                const key = getStepImageKey(stepData, stepIndex);
-                if (!key || stepImageCache[key] || stepImageRequestedRef.current.has(key)) return;
-                const imagePrompt = String(stepData.imagePrompt || stepData.text || '').trim();
-                if (!imagePrompt) return;
-                stepImageRequestedRef.current.add(key);
-                try {
-                    const imageUrl = await window.RecipeFeature.fetchStepImage(imagePrompt);
-                    if (imageUrl) {
-                        setStepImageCache((prev) => ({ ...prev, [key]: imageUrl }));
-                    }
-                } catch (e) {
-                    console.warn('[CookingView] step image generation failed:', e && e.message ? e.message : e);
-                    // 失敗時維持「圖片載入中...」，避免反覆重試耗額度
-                }
-            };
+            const recipeSteps = Array.isArray(recipeData?.steps) ? recipeData.steps : [];
+            const hasRecipe = recipeSteps.length > 0;
+            const safeStep = hasRecipe ? (recipeSteps[step] || recipeSteps[0]) : { text: "", tip: "" };
 
             useEffect(() => {
                 const names = availableIngredients.map((i) => i.name);
@@ -681,13 +657,6 @@
                     return filtered.length > 0 ? filtered : names;
                 });
             }, [availableIngredients]);
-
-            useEffect(() => {
-                const currentStep = recipeSteps[step];
-                if (currentStep) ensureStepImage(currentStep, step);
-                const nextStep = recipeSteps[step + 1];
-                if (nextStep) ensureStepImage(nextStep, step + 1);
-            }, [step, recipeSteps]);
 
             const toggleIngredient = (name) => {
                 setSelectedIngredients((prev) => (
@@ -698,8 +667,7 @@
             const loadRecipe = async (ingredientNames = selectedIngredients, options = {}) => {
                 const { force = false } = options || {};
                 if (!window.RecipeFeature || typeof window.RecipeFeature.getRecipe !== "function") {
-                    setRecipeError("食譜模組未載入，已使用預設食譜。");
-                    setRecipeData(window.RecipeFeature?.FALLBACK_RECIPE || recipeData);
+                    setRecipeError("食譜模組未載入，請重新整理頁面。");
                     return;
                 }
                 if (!Array.isArray(ingredientNames) || ingredientNames.length === 0) {
@@ -715,17 +683,11 @@
                 setRecipeError("");
                 try {
                     const next = await window.RecipeFeature.getRecipe(inventory, ingredientNames);
-                    setRecipeData(next || window.RecipeFeature.FALLBACK_RECIPE);
-                    setStepImageCache({});
-                    stepImageRequestedRef.current = new Set();
+                    setRecipeData(next || window.RecipeFeature.EMPTY_RECIPE || EMPTY_RECIPE);
                     setStep(0);
                     lastRecipeRequestKeyRef.current = requestKey;
                 } catch (e) {
-                    setRecipeError("取得食譜失敗，已改用預設食譜。");
-                    setRecipeData(window.RecipeFeature.FALLBACK_RECIPE);
-                    setStepImageCache({});
-                    stepImageRequestedRef.current = new Set();
-                    setStep(0);
+                    setRecipeError(e?.message || "取得食譜失敗，請稍後再試。");
                 } finally {
                     setIsLoadingRecipe(false);
                 }
@@ -746,14 +708,18 @@
                                 <ChefHat size={24} className="text-white" />
                             </div>
                             <div>
-                                <h2 className="text-2xl text-white font-bold tracking-wide">{recipeData?.title || "AI 食譜建議"}</h2>
+                                <h2 className="text-2xl text-white font-bold tracking-wide">{hasRecipe ? recipeData.title : "烹飪模式"}</h2>
                                 <p className="text-white/50 flex items-center gap-2 text-xs">
-                                    <Clock size={12} /> {recipeData?.duration || "-"} • {recipeData?.difficulty || "-"} • 已選 {selectedIngredients.length} 項食材
+                                    {hasRecipe ? (
+                                        <React.Fragment><Clock size={12} /> {recipeData?.duration || "-"} • {recipeData?.difficulty || "-"} • 已選 {selectedIngredients.length} 項食材</React.Fragment>
+                                    ) : (
+                                        <span>請先選擇食材以生成食譜</span>
+                                    )}
                                 </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <button onClick={() => loadRecipe(selectedIngredients, { force: true })} disabled={isLoadingRecipe || selectedIngredients.length === 0} className="px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 transition-all active:scale-95 bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
+                            <button onClick={() => loadRecipe(selectedIngredients, { force: true })} disabled={isLoadingRecipe || !hasRecipe || selectedIngredients.length === 0} className="px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 transition-all active:scale-95 bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50">
                                 <RefreshCw size={16} className={isLoadingRecipe ? "animate-spin" : ""} /> {isLoadingRecipe ? "生成中..." : "重新生成"}
                             </button>
                             <button onClick={() => setIsIngredientModalOpen(true)} className="px-4 py-2 rounded-full text-sm font-bold shadow-lg flex items-center gap-2 transition-all active:scale-95 bg-slate-700 hover:bg-slate-600 text-white border border-white/10">
@@ -762,45 +728,65 @@
                         </div>
                     </div>
 
-                    <div className="flex-1 flex gap-6 min-h-0">
-                        <div className="w-[45%] h-full bg-black rounded-3xl border border-white/10 relative overflow-hidden group shadow-2xl">
-                            {resolvedStepImage ? (
-                                <img src={resolvedStepImage} className="w-full h-full object-cover opacity-80 transition-all duration-700 group-hover:scale-105" alt="Cooking" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-slate-900/80 text-white/50 text-sm">
-                                    圖片載入中...
-                                </div>
-                            )}
-
-                            <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-3 rounded-2xl border border-white/10">
-                                <div className="flex gap-1.5 h-1 w-full">
-                                    {recipeSteps.map((_, i) => (
-                                        <div key={i} className={`h-full rounded-full flex-1 transition-colors ${i <= step ? 'bg-blue-500' : 'bg-white/20'}`} />
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex-1 bg-slate-800/40 backdrop-blur-md rounded-3xl p-6 border border-white/5 flex flex-col justify-between">
-                            <div>
-                                <div className="inline-flex items-center gap-2 bg-blue-600/20 text-blue-300 px-3 py-1 rounded-full font-bold text-xs mb-4 border border-blue-500/20">
-                                    步驟 {step + 1} / {recipeSteps.length}
-                                </div>
+                    <div className="flex-1 flex min-h-0">
+                        <div className="flex-1 bg-slate-800/40 backdrop-blur-md rounded-3xl p-6 border border-white/5 flex flex-col justify-between min-h-0">
+                            <div className="min-h-0 flex flex-col flex-1">
                                 {recipeError && (
                                     <p className="text-amber-300 text-xs mb-3">{recipeError}</p>
                                 )}
-                                <p className="text-3xl text-white font-bold leading-snug mb-6">
-                                    {safeStep.text}
-                                </p>
-                                <div className="p-4 bg-yellow-500/5 border-l-2 border-yellow-500 rounded-r-xl">
-                                    <p className="text-yellow-100/80 text-sm font-medium flex gap-2">
-                                        <span className="font-bold text-yellow-500 shrink-0">💡 提示：</span>
-                                        {safeStep.tip}
-                                    </p>
-                                </div>
+                                {isLoadingRecipe ? (
+                                    <div className="flex-1 flex items-center justify-center text-white/60 text-sm">
+                                        正在生成食譜，請稍候…
+                                    </div>
+                                ) : !hasRecipe ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
+                                        <ChefHat size={48} className="text-white/20 mb-4" />
+                                        <p className="text-white/70 text-base leading-relaxed max-w-md">
+                                            請點擊右上角的「<span className="text-blue-300 font-medium">食材選擇</span>」，勾選冰箱裡的食材並確認，系統就會為你生成專屬食譜步驟。
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <React.Fragment>
+                                        <div className="mb-4 shrink-0">
+                                            <div className="flex gap-1.5 h-1.5 w-full">
+                                                {recipeSteps.map((_, i) => (
+                                                    <div key={i} className={`h-full rounded-full flex-1 transition-colors ${i <= step ? 'bg-blue-500' : 'bg-white/20'}`} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="inline-flex items-center gap-2 bg-blue-600/20 text-blue-300 px-3 py-1 rounded-full font-bold text-xs mb-4 border border-blue-500/20 w-fit">
+                                            步驟 {step + 1} / {recipeSteps.length}
+                                        </div>
+                                        <p className="text-3xl text-white font-bold leading-snug mb-6">
+                                            {safeStep.text}
+                                        </p>
+                                        {safeStep.tip ? (
+                                            <div className="p-4 bg-yellow-500/5 border-l-2 border-yellow-500 rounded-r-xl">
+                                                <p className="text-yellow-100/80 text-sm font-medium flex gap-2">
+                                                    <span className="font-bold text-yellow-500 shrink-0">💡 提示：</span>
+                                                    {safeStep.tip}
+                                                </p>
+                                            </div>
+                                        ) : null}
+                                        <div className="flex-1 overflow-y-auto no-scrollbar mt-6 pr-1 space-y-2">
+                                            {recipeSteps.map((s, i) => (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    onClick={() => setStep(i)}
+                                                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${i === step ? 'bg-blue-600/20 border-blue-400/40 text-white' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'}`}
+                                                >
+                                                    <span className="text-xs font-bold text-blue-300 mr-2">步驟 {i + 1}</span>
+                                                    <span className="text-sm">{s.text}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </React.Fragment>
+                                )}
                             </div>
 
-                            <div className="flex gap-4 mt-4">
+                            {hasRecipe && !isLoadingRecipe && (
+                            <div className="flex gap-4 mt-4 shrink-0">
                                 <button onClick={() => step > 0 && setStep(step - 1)} disabled={step === 0} className="w-16 h-16 rounded-2xl border border-white/10 flex items-center justify-center text-white hover:bg-white/5 disabled:opacity-30 transition-all active:scale-95">
                                     <ArrowLeft size={24} />
                                 </button>
@@ -808,6 +794,7 @@
                                     {step === recipeSteps.length - 1 ? '完成' : <React.Fragment>下一步 <ArrowRight size={20} /></React.Fragment>}
                                 </button>
                             </div>
+                            )}
                         </div>
                     </div>
 
